@@ -1,4 +1,4 @@
-# Commercial License — biotracking
+# Commercial License — biotracking/sardine-track
 
 ## Free Use (AGPL-3.0)
 
