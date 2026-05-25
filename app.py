@@ -2079,6 +2079,226 @@ def uv_lag():
 
 
 # ============================================================
+# UV wearable view
+# ============================================================
+
+
+def _uv_bucket_minutes(hours: int) -> int:
+    """Bucket width for the chart based on view range.
+
+    Raw resolution for short windows; coarser bins as range grows so we
+    don't try to render thousands of points at the same x-tick. Returns
+    0 to mean 'no bucketing, pass raw samples through'. hours=0 means
+    all-time, which uses daily buckets.
+    """
+    if hours == 0:
+        return 1440  # all-time → daily buckets
+    if hours <= 6:
+        return 0
+    if hours <= 72:
+        return 15
+    if hours <= 168:
+        return 30
+    if hours <= 720:    # ≤ 1 month
+        return 60
+    if hours <= 4320:   # ≤ 6 months
+        return 360      # 6-hour buckets
+    return 1440         # daily
+
+
+def _bucket_uv_samples(samples: list[dict], bucket_minutes: int) -> list[dict]:
+    """Average samples into fixed-width time bins anchored to the hour.
+
+    A bin's ts_confidence is 'sync_anchored' only if every contributing row
+    was sync_anchored; otherwise 'stale_boot_approx' so the chart keeps the
+    dimmed-point visual for any bin that's even partly approximate.
+    """
+    if bucket_minutes <= 0 or not samples:
+        return samples
+
+    bins: Dict[str, List[dict]] = {}
+    for s in samples:
+        ts = s.get("ts")
+        if not ts:
+            continue
+        try:
+            dt = datetime.fromisoformat(ts)
+        except ValueError:
+            continue
+        floored = (dt.hour * 60 + dt.minute) // bucket_minutes * bucket_minutes
+        key = dt.strftime("%Y-%m-%dT") + f"{floored // 60:02d}:{floored % 60:02d}:00"
+        bins.setdefault(key, []).append(s)
+
+    def _mean(rows: List[dict], field: str) -> Optional[float]:
+        vals = [r[field] for r in rows if r.get(field) is not None]
+        return sum(vals) / len(vals) if vals else None
+
+    out = []
+    for key in sorted(bins.keys()):
+        rows = bins[key]
+        confs = {r.get("ts_confidence") for r in rows}
+        bin_conf = "sync_anchored" if confs == {"sync_anchored"} else "stale_boot_approx"
+        out.append({
+            "ts": key,
+            "ts_confidence": bin_conf,
+            "uva": _mean(rows, "uva"),
+            "uvb": _mean(rows, "uvb"),
+            "comp1": _mean(rows, "comp1"),
+            "comp2": _mean(rows, "comp2"),
+            "uv_index": _mean(rows, "uv_index"),
+            "batt_mv": _mean(rows, "batt_mv"),
+            "event_label": None,
+            "n": len(rows),  # how many raw samples folded into this bin
+        })
+    return out
+
+
+def _uv_stats(samples: List[dict]) -> dict:
+    """Mean and peak summary for the stats panel. Computed on the raw
+    samples, not the bucketed view, so the averages reflect sample density."""
+    if not samples:
+        return {}
+
+    def _mean(field: str) -> Optional[float]:
+        vals = [s[field] for s in samples if s.get(field) is not None]
+        return sum(vals) / len(vals) if vals else None
+
+    def _peak(field: str) -> Optional[float]:
+        vals = [s[field] for s in samples if s.get(field) is not None]
+        return max(vals) if vals else None
+
+    n_anchored = sum(1 for s in samples if s.get("ts_confidence") == "sync_anchored")
+    return {
+        "n": len(samples),
+        "n_anchored": n_anchored,
+        "n_approx": len(samples) - n_anchored,
+        "mean_uva": _mean("uva"),
+        "mean_uvb": _mean("uvb"),
+        "mean_uv_index": _mean("uv_index"),
+        "mean_comp1": _mean("comp1"),
+        "mean_comp2": _mean("comp2"),
+        "peak_uv_index": _peak("uv_index"),
+        "peak_uva": _peak("uva"),
+        "peak_uvb": _peak("uvb"),
+    }
+
+
+# UVI 3.0 is "moderate" on the WHO scale (sunburn risk for unprotected skin).
+# Used as the threshold for "outdoor / direct sun exposure" rather than ambient
+# indoor light. Useful for lupus risk because the photo-trigger from UV-B
+# exposure correlates with crossing into the moderate/high range, not with
+# integrated low-UV ambient.
+_UV_HIGH_THRESHOLD = 3.0
+_UV_SAMPLE_INTERVAL_MIN = 5  # device samples every ~5 minutes
+
+
+def _uv_daily_summary(samples: List[dict]) -> List[dict]:
+    """Per-day UV summary: peak UVI, hours above the moderate threshold.
+
+    Less sensitive to within-day chain-anchor mis-placement than the chart is,
+    because a sample landing at 5am vs noon doesn't change the day's peak or
+    its total hours-above-threshold. Designed for the lupus use case where
+    daily UV dose matters more than precise timing.
+
+    'approx_only' flags days that have only stale_boot_approx data (no
+    sync-anchored samples) — those days' totals are most affected by gap
+    swallowing across boots.
+    """
+    if not samples:
+        return []
+
+    by_day: Dict[str, dict] = {}
+    for s in samples:
+        ts = s.get("ts")
+        uvi = s.get("uv_index")
+        if not ts or uvi is None:
+            continue
+        day = ts[:10]
+        d = by_day.setdefault(day, {
+            "day": day,
+            "peak_uv": 0.0,
+            "n_samples": 0,
+            "n_above_threshold": 0,
+            "approx_only": True,
+        })
+        if uvi > d["peak_uv"]:
+            d["peak_uv"] = uvi
+        d["n_samples"] += 1
+        if uvi >= _UV_HIGH_THRESHOLD:
+            d["n_above_threshold"] += 1
+        if s.get("ts_confidence") == "sync_anchored":
+            d["approx_only"] = False
+
+    for d in by_day.values():
+        d["hours_above_threshold"] = round(
+            d["n_above_threshold"] * _UV_SAMPLE_INTERVAL_MIN / 60, 1
+        )
+
+    return sorted(by_day.values(), key=lambda d: d["day"])
+
+
+_WEARABLE_RANGES = [
+    (24,   "24h",   "last 24 hours"),
+    (168,  "1w",    "last week"),
+    (720,  "1mo",   "last month"),
+    (4320, "6mo",   "last 6 months"),
+    (0,    "all",   "all time"),
+]
+
+
+@app.route("/wearable")
+def wearable():
+    """UV wearable sensor readings.
+
+    Stale-boot back-anchored rows are shown by default with dim/small point
+    styling — they're approximate (rank-based heuristic can't perfectly
+    reconstruct chronology across many C3 reboots) but they're most of the
+    data. Pass ?include_approx=0 to hide them.
+    """
+    hours = request.args.get("hours", default=24, type=int)
+    # hours == 0 is the all-time sentinel; otherwise clamp to a sane upper bound.
+    if hours != 0:
+        hours = max(1, min(hours, 24 * 365 * 5))
+    include_approx = request.args.get("include_approx", default=1, type=int) != 0
+
+    rows = db.get_recent_uv_sensor_readings(uid(), hours=hours)
+    n_approx_hidden = sum(1 for r in rows if r["ts_confidence"] == "stale_boot_approx")
+    if not include_approx:
+        rows = [r for r in rows if r["ts_confidence"] != "stale_boot_approx"]
+    samples_raw = [r for r in rows if r["event_label"] is None]
+    events      = [r for r in rows if r["event_label"] is not None]
+
+    # Stats are computed BEFORE bucketing so the averages reflect real
+    # sample density, not bin density. Bucketing only shapes the chart.
+    stats          = _uv_stats(samples_raw)
+    bucket_minutes = _uv_bucket_minutes(hours)
+    samples        = _bucket_uv_samples(samples_raw, bucket_minutes)
+    daily_summary  = _uv_daily_summary(samples_raw)
+
+    range_label = next((lbl for h, _, lbl in _WEARABLE_RANGES if h == hours), f"last {hours}h")
+
+    return render_template(
+        "wearable.html",
+        has_data=bool(samples_raw),
+        hours=hours,
+        range_label=range_label,
+        range_options=_WEARABLE_RANGES,
+        include_approx=include_approx,
+        n_approx_hidden=n_approx_hidden if not include_approx else 0,
+        bucket_minutes=bucket_minutes,
+        samples_json=json.dumps(samples),
+        events_json=json.dumps(events),
+        daily_summary_json=json.dumps(daily_summary),
+        daily_summary=daily_summary,
+        n_samples=len(samples_raw),
+        n_buckets=len(samples) if bucket_minutes else None,
+        n_events=len(events),
+        stats=stats,
+        uv_high_threshold=_UV_HIGH_THRESHOLD,
+    )
+
+
+# ============================================================
 # HRV and autonomic
 # ============================================================
 
@@ -6007,6 +6227,184 @@ def api_health_sync():
         app.logger.warning("health_sync_events insert failed: %s", e)
 
     return jsonify({"ok": True, "date": obs_date, "fields_updated": fields_updated})
+
+
+# ============================================================
+# UV wearable ingest (device → server)
+# ============================================================
+
+# VEML6075 UV index conversion. A/B/C/D are the visible/IR compensation
+# coefficients (left at 0.0 — uncompensated); UVA/UVB responsivity are the
+# datasheet defaults.
+_VEML_A, _VEML_B, _VEML_C, _VEML_D = 0.0, 0.0, 0.0, 0.0
+_VEML_UVA_RESP = 0.001461
+_VEML_UVB_RESP = 0.002591
+
+
+def _veml6075_uv_index(uva: int, uvb: int, comp1: int, comp2: int) -> float:
+    uva_calc = uva - _VEML_A * comp1 - _VEML_B * comp2
+    uvb_calc = uvb - _VEML_C * comp1 - _VEML_D * comp2
+    uvi = ((uva_calc * _VEML_UVA_RESP) + (uvb_calc * _VEML_UVB_RESP)) / 2
+    return max(uvi, 0.0)
+
+
+def _veml6075_sample_is_bad(uva: int, uvb: int, comp1: int, comp2: int) -> bool:
+    # Failed I2C read: bus floats high, both bytes come back 0xFF, so uva
+    # reads as 0xFFFF while the other channels stay near zero. A real
+    # saturation event would peg multiple channels, not just one.
+    if uva == 0xFFFF and uvb < 100 and comp1 < 100:
+        return True
+    if uvb == 0xFFFF and uva < 100 and comp1 < 100:
+        return True
+    return False
+
+
+@app.route("/api/uv/ingest", methods=["POST"])
+@csrf.exempt
+def api_uv_ingest():
+    """Accept a CSV tail from the uv-wearable device.
+
+    Auth: Bearer token from config.json["wearable_token"].
+    Body (text/csv): one row per line, two formats:
+        sample:  boot_id,ms_since_boot,uva,uvb,comp1,comp2,batt_mv
+        event:   boot_id,ms_since_boot,EVENT,<label>
+    Headers used for time anchoring:
+        X-Boot-Id   - the device's current boot id
+        X-Device-Ms - millis() at the device when sync started
+    Rows from the current boot get an absolute ts derived from request arrival
+    minus device-clock skew. Rows from older boots store ts=NULL.
+    """
+    token = CONFIG.get("wearable_token")
+    if not token:
+        return jsonify({"error": "wearable_token not configured"}), 500
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != token:
+        return jsonify({"error": "unauthorized"}), 401
+
+    user_id = CONFIG.get("wearable_user_id")
+    if not user_id:
+        return jsonify({"error": "wearable_user_id not configured"}), 500
+
+    try:
+        current_boot = int(request.headers.get("X-Boot-Id", "-1"))
+        device_ms = int(request.headers.get("X-Device-Ms", "0"))
+    except ValueError:
+        return jsonify({"error": "bad X-Boot-Id or X-Device-Ms"}), 400
+
+    arrival = datetime.now()
+    body = request.get_data(as_text=True) or ""
+
+    rows = []
+    skipped = 0
+    for line in body.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(",")
+        if len(parts) < 4:
+            skipped += 1
+            continue
+        try:
+            boot_id = int(parts[0])
+            ms_since_boot = int(parts[1])
+        except ValueError:
+            skipped += 1
+            continue
+
+        if boot_id == current_boot and device_ms > 0:
+            offset_ms = device_ms - ms_since_boot
+            ts = (arrival - timedelta(milliseconds=offset_ms)).isoformat(timespec="seconds")
+            ts_confidence = "sync_anchored"
+        else:
+            ts = None
+            ts_confidence = None
+
+        row = {
+            "user_id": user_id, "boot_id": boot_id, "ms_since_boot": ms_since_boot,
+            "ts": ts, "ts_confidence": ts_confidence,
+            "uva": None, "uvb": None, "comp1": None, "comp2": None,
+            "uv_index": None, "batt_mv": None, "event_label": None,
+        }
+
+        if parts[2] == "EVENT":
+            row["event_label"] = ",".join(parts[3:])  # rejoin in case label has commas
+        else:
+            if len(parts) < 7:
+                skipped += 1
+                continue
+            try:
+                uva, uvb, comp1, comp2, batt_mv = (int(parts[i]) for i in range(2, 7))
+            except ValueError:
+                skipped += 1
+                continue
+            if _veml6075_sample_is_bad(uva, uvb, comp1, comp2):
+                skipped += 1
+                continue
+            row["uva"], row["uvb"], row["comp1"], row["comp2"] = uva, uvb, comp1, comp2
+            row["batt_mv"] = batt_mv
+            row["uv_index"] = _veml6075_uv_index(uva, uvb, comp1, comp2)
+
+        rows.append(row)
+
+    # Chain-anchor stale-boot rows: walk newest-to-oldest, placing each boot's
+    # end at the next-newer boot's start. This respects each boot's observed
+    # duration (max ms_since_boot) so a 17h boot occupies 17 wall-clock hours
+    # instead of being squished into a 1-minute rank slot — fixing the prior
+    # bug where multiple long boots would visually overlap and produce things
+    # like UV peaks at 5am.
+    #
+    # Anchor for the newest stale boot's end:
+    #   • If we have a current-boot sync (device_ms > 0), that boot started at
+    #     arrival - device_ms; assume the newest stale boot ended at that
+    #     moment (zero-gap between consecutive boots).
+    #   • Otherwise fall back to arrival - 1 min so something shows up.
+    #
+    # Caveats (intrinsic — can't fix without firmware help):
+    #   • Zero-gap assumption: if the device sleeps/charges off between boots,
+    #     the gap gets silently swallowed and older boots' samples shift later
+    #     than reality. Per-day aggregates tolerate this better than the chart.
+    #   • Lookback cap drops rows whose chained ts would be more than 24h
+    #     before arrival.
+    STALE_LOOKBACK_MIN = 24 * 60
+    NEWEST_BOOT_END_FALLBACK_MIN = 1
+    stale = [r for r in rows if r["ts"] is None]
+    if stale:
+        max_ms_per_boot: Dict[int, int] = {}
+        for r in stale:
+            b = r["boot_id"]
+            max_ms_per_boot[b] = max(max_ms_per_boot.get(b, 0), r["ms_since_boot"])
+
+        if current_boot >= 0 and device_ms > 0:
+            newest_boot_end = arrival - timedelta(milliseconds=device_ms)
+        else:
+            newest_boot_end = arrival - timedelta(minutes=NEWEST_BOOT_END_FALLBACK_MIN)
+
+        boot_start_dt: Dict[int, datetime] = {}
+        next_boot_start = newest_boot_end
+        for b in sorted(max_ms_per_boot.keys(), reverse=True):
+            boot_start_dt[b] = next_boot_start - timedelta(milliseconds=max_ms_per_boot[b])
+            next_boot_start = boot_start_dt[b]
+
+        lookback_cutoff = arrival - timedelta(minutes=STALE_LOOKBACK_MIN)
+        for r in stale:
+            ts_dt = boot_start_dt[r["boot_id"]] + timedelta(milliseconds=r["ms_since_boot"])
+            if ts_dt < lookback_cutoff:
+                continue  # too far back — leave NULL
+            r["ts"] = ts_dt.isoformat(timespec="seconds")
+            r["ts_confidence"] = "stale_boot_approx"
+
+    try:
+        accepted = db.insert_uv_sensor_rows(rows)
+    except Exception as e:
+        app.logger.warning("uv_sensor insert failed: %s", e)
+        return jsonify({"error": "db insert failed"}), 500
+
+    return jsonify({
+        "accepted": accepted,
+        "skipped": skipped,
+        "anchored_to": arrival.isoformat(timespec="seconds"),
+        "stale_back_anchored": len(stale),
+    })
 
 
 @app.route("/api/health-sync/recent")

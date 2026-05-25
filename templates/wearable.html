@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+
+{% block title %}wearable — sardinetrack{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>wearable</h1>
+    <p class="page-subtitle">
+        {{ range_label }}
+        {% if has_data %}
+            &nbsp;·&nbsp; {{ n_samples }} samples
+            {% if n_buckets %} &nbsp;·&nbsp; {{ n_buckets }} bins {% endif %}
+            {% if n_events %} &nbsp;·&nbsp; {{ n_events }} events {% endif %}
+        {% endif %}
+    </p>
+</div>
+
+<!-- Range selector -->
+<div style="display:flex; gap:var(--space-sm); margin-bottom:var(--space-md); flex-wrap:wrap;">
+    {% for h, label, _full in range_options %}
+    <a href="{{ url_for('wearable', hours=h, include_approx=0 if not include_approx else None) }}"
+       style="padding:var(--space-xs) var(--space-md);
+              border:1px solid var(--border-subtle);
+              border-radius:var(--radius-sm);
+              text-decoration:none;
+              font-size:0.85rem;
+              {% if hours == h %}
+              background:var(--bg-elevated); color:var(--text-primary);
+              {% else %}
+              color:var(--text-secondary);
+              {% endif %}
+              ">{{ label }}</a>
+    {% endfor %}
+</div>
+
+<!-- Stale-boot toggle. Approx rows are shown by default with dim/small point
+     styling. Most of the data is approx — the rank-based back-anchor can't
+     perfectly reconstruct chronology across many short C3 reboots, so
+     placement is fuzzy, but hiding them empties most views. -->
+<div style="display:flex; gap:var(--space-sm); margin-bottom:var(--space-md); flex-wrap:wrap; align-items:center;">
+    <span style="font-size:0.85rem; color:var(--text-muted);">approximate samples:</span>
+    <a href="{{ url_for('wearable', hours=hours, include_approx=0 if include_approx else None) }}"
+       style="padding:var(--space-xs) var(--space-md);
+              border:1px solid var(--border-subtle);
+              border-radius:var(--radius-sm);
+              text-decoration:none;
+              font-size:0.85rem;
+              {% if include_approx %}
+              background:var(--bg-elevated); color:var(--text-primary);
+              {% else %}
+              color:var(--text-secondary);
+              {% endif %}
+              ">{% if include_approx %}shown{% else %}hidden{% endif %}</a>
+</div>
+
+{% if has_data %}
+<!-- Smoothing toggle -->
+<div style="display:flex; gap:var(--space-sm); margin-bottom:var(--space-lg); flex-wrap:wrap; align-items:center;">
+    <span style="font-size:0.85rem; color:var(--text-muted);">smoothing:</span>
+    {% for mode, label in [('off','off'), ('light','light'), ('strong','strong')] %}
+    <button type="button" data-smooth="{{ mode }}"
+       class="smooth-btn"
+       style="padding:var(--space-xs) var(--space-md);
+              border:1px solid var(--border-subtle);
+              border-radius:var(--radius-sm);
+              background:transparent;
+              color:var(--text-secondary);
+              font-size:0.85rem;
+              cursor:pointer;
+              font-family:inherit;
+              ">{{ label }}</button>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if has_data and stats %}
+<!-- Stats panel -->
+<div class="stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:var(--space-md); margin-bottom:var(--space-lg);">
+    <div class="stat-card">
+        <div class="stat-label">UV index</div>
+        <div class="stat-value">{{ '%.2f'|format(stats.mean_uv_index or 0) }}</div>
+        <div class="stat-sub">peak {{ '%.2f'|format(stats.peak_uv_index or 0) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">UVA (raw)</div>
+        <div class="stat-value">{{ '%.0f'|format(stats.mean_uva or 0) }}</div>
+        <div class="stat-sub">peak {{ '%.0f'|format(stats.peak_uva or 0) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">UVB (raw)</div>
+        <div class="stat-value">{{ '%.0f'|format(stats.mean_uvb or 0) }}</div>
+        <div class="stat-sub">peak {{ '%.0f'|format(stats.peak_uvb or 0) }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">comp1 (vis)</div>
+        <div class="stat-value">{{ '%.0f'|format(stats.mean_comp1 or 0) }}</div>
+        <div class="stat-sub">visible-light reference</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">comp2 (IR)</div>
+        <div class="stat-value">{{ '%.0f'|format(stats.mean_comp2 or 0) }}</div>
+        <div class="stat-sub">infrared reference</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">samples</div>
+        <div class="stat-value">{{ stats.n }}</div>
+        <div class="stat-sub">
+            {{ stats.n_anchored }} sync-anchored
+            {% if stats.n_approx %} · {{ stats.n_approx }} approx {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if not has_data %}
+<div class="empty-state">
+    <p>No wearable samples in the last {{ hours }}h.</p>
+    <p style="margin-top:1rem; color:var(--text-muted); font-size:0.9rem;">
+        Samples appear after the device syncs over WiFi. Rows from boots that haven't
+        been wall-clock anchored yet aren't shown here.
+    </p>
+    {% if n_approx_hidden %}
+    <p style="margin-top:1rem; color:var(--text-muted); font-size:0.9rem;">
+        {{ n_approx_hidden }} back-anchored sample{% if n_approx_hidden != 1 %}s{% endif %} hidden in this window
+        (wall-clock placement is unreliable across multiple C3 reboots).
+        <a href="{{ url_for('wearable', hours=hours, include_approx=1) }}"
+           style="color:var(--text-secondary);">show approximate samples</a>
+    </p>
+    {% endif %}
+</div>
+
+{% else %}
+
+<!-- UV chart -->
+<div class="chart-container">
+    <div class="chart-title">UV index &amp; raw UVA / UVB</div>
+    <canvas id="chartUv" style="max-height: 360px;"></canvas>
+</div>
+
+<!-- Battery sparkline -->
+<div class="chart-container" style="margin-top:var(--space-lg);">
+    <div class="chart-title">battery (mV)</div>
+    <canvas id="chartBatt" style="max-height: 160px;"></canvas>
+</div>
+
+{% if daily_summary %}
+<!-- Per-day UV summary. Robust to within-day back-anchor mis-placement —
+     a sample landing at 5am vs noon doesn't change the day's peak or its
+     total hours-above-threshold. Approx-only days (no sync-anchored data
+     that day) are dimmed; they're also the days most affected by gap
+     swallowing across reboots, so read them with some caution. -->
+<div class="chart-container" style="margin-top:var(--space-lg);">
+    <div class="chart-title">daily UV exposure</div>
+    <div style="color:var(--text-muted); font-size:0.85rem; margin-bottom:var(--space-md);">
+        peak UVI per day · dashed line = UVI {{ '%.0f' | format(uv_high_threshold) }} (moderate sun, lupus risk threshold)
+    </div>
+    <canvas id="chartDaily" style="max-height: 240px;"></canvas>
+</div>
+{% endif %}
+
+{% endif %}
+
+<style>
+.stat-card {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: var(--space-md);
+    background: var(--bg-elevated);
+}
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: lowercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-xs);
+}
+.stat-value {
+    font-size: 1.6rem;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+.stat-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: var(--space-xs);
+}
+.smooth-btn.active {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+{% if has_data %}
+<script>
+const samples = {{ samples_json | safe }};
+const events  = {{ events_json | safe }};
+
+Chart.defaults.font.family = "'Source Serif 4', 'Times New Roman', serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#9994a8';
+
+// ============================================================
+// Per-point styling — dim + smaller for back-anchored bins so the chart
+// visually distinguishes solid wall-clock data from estimated. After
+// server-side bucketing this carries over: a bin's confidence is
+// 'sync_anchored' only if every contributing row was, else approx.
+// ============================================================
+const APPROX_CONFIDENCES = new Set(['created_at_approx', 'stale_boot_approx']);
+const isApprox = samples.map(s => APPROX_CONFIDENCES.has(s.ts_confidence));
+const pointColors = isApprox.map(a => a ? 'rgba(197,189,236,0.4)' : '#c5bdec');
+const pointRadii  = isApprox.map(a => a ? 2 : 0);
+
+// ============================================================
+// Client-side rolling-mean smoothing. Window scales with point count so
+// the visual effect is comparable across range selections (a "light"
+// smooth on 14d covers more hours than on 24h, which is what you want —
+// you're asking the chart to smear over the same fraction of the view,
+// not the same wall-clock interval).
+// ============================================================
+function smoothingWindow(mode, n) {
+    if (mode === 'off' || n < 5) return 1;
+    if (mode === 'light')  return Math.max(3, Math.round(n / 40));
+    if (mode === 'strong') return Math.max(5, Math.round(n / 12));
+    return 1;
+}
+
+function rollingMean(arr, window) {
+    if (window <= 1) return arr.slice();
+    const half = Math.floor(window / 2);
+    const out = new Array(arr.length);
+    for (let i = 0; i < arr.length; i++) {
+        let sum = 0, cnt = 0;
+        const lo = Math.max(0, i - half);
+        const hi = Math.min(arr.length - 1, i + half);
+        for (let j = lo; j <= hi; j++) {
+            if (arr[j] != null) { sum += arr[j]; cnt++; }
+        }
+        out[i] = cnt > 0 ? sum / cnt : null;
+    }
+    return out;
+}
+
+// Pull each channel out once; smoothing operates on these arrays.
+const ts     = samples.map(s => s.ts);
+const rawSeries = {
+    uvIndex: samples.map(s => s.uv_index),
+    uva:     samples.map(s => s.uva),
+    uvb:     samples.map(s => s.uvb),
+    comp1:   samples.map(s => s.comp1),
+    comp2:   samples.map(s => s.comp2),
+    batt:    samples.map(s => s.batt_mv),
+};
+
+// Pair {x: ts, y: v} so Chart.js places points on a real time axis (not
+// categorical). Gaps between samples now show up correctly as gaps in x.
+function toPoints(values) {
+    const out = new Array(values.length);
+    for (let i = 0; i < values.length; i++) {
+        out[i] = { x: ts[i], y: values[i] };
+    }
+    return out;
+}
+
+// Event markers as a scatter overlay on the UV chart at y = max(uvIndex)
+const peakUv = Math.max(0.5, ...rawSeries.uvIndex.filter(v => v != null));
+const eventPoints = events.map(e => ({ x: e.ts, y: peakUv, label: e.event_label }));
+
+// ============================================================
+// Charts — built once, then updated in-place when smoothing changes.
+// ============================================================
+const SMOOTH_KEY = 'wearable.smooth';
+let currentMode = localStorage.getItem(SMOOTH_KEY) || 'off';
+if (!['off','light','strong'].includes(currentMode)) currentMode = 'off';
+
+const uvChart = new Chart(document.getElementById('chartUv'), {
+    type: 'line',
+    data: {
+        datasets: [
+            {
+                label: 'UV index',
+                borderColor: '#c5bdec',
+                backgroundColor: 'rgba(197,189,236,0.15)',
+                borderWidth: 2,
+                pointRadius: pointRadii,
+                pointBackgroundColor: pointColors,
+                pointBorderColor: pointColors,
+                tension: 0.2,
+                fill: true,
+                yAxisID: 'y',
+            },
+            {
+                label: 'UVA (raw)',
+                borderColor: '#8b7ac6',
+                borderWidth: 1,
+                pointRadius: 0,
+                tension: 0.2,
+                yAxisID: 'yRaw',
+            },
+            {
+                label: 'UVB (raw)',
+                borderColor: '#4a3a8f',
+                borderWidth: 1,
+                pointRadius: 0,
+                tension: 0.2,
+                yAxisID: 'yRaw',
+            },
+            {
+                label: 'comp1 (vis)',
+                borderColor: '#7a8c9c',
+                borderWidth: 1,
+                borderDash: [4, 3],
+                pointRadius: 0,
+                tension: 0.2,
+                yAxisID: 'yRaw',
+                hidden: true,
+            },
+            {
+                label: 'comp2 (IR)',
+                borderColor: '#9c8c7a',
+                borderWidth: 1,
+                borderDash: [4, 3],
+                pointRadius: 0,
+                tension: 0.2,
+                yAxisID: 'yRaw',
+                hidden: true,
+            },
+            {
+                label: 'events',
+                data: eventPoints,
+                type: 'scatter',
+                parsing: false,
+                showLine: false,
+                borderColor: '#e8a04a',
+                backgroundColor: '#e8a04a',
+                pointRadius: 5,
+                pointStyle: 'triangle',
+                yAxisID: 'y',
+            },
+        ],
+    },
+    options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: { labels: { color: '#9994a8', boxWidth: 12, padding: 16 } },
+            tooltip: {
+                backgroundColor: '#1e1e28',
+                borderColor: '#2a2a38',
+                borderWidth: 1,
+                titleColor: '#e8e6e0',
+                bodyColor: '#9994a8',
+                padding: 10,
+                cornerRadius: 6,
+                callbacks: {
+                    label: ctx => {
+                        if (ctx.dataset.label === 'events') {
+                            const e = events[ctx.dataIndex];
+                            return `event: ${e ? e.event_label : ''}`;
+                        }
+                        const v = ctx.parsed.y;
+                        return `${ctx.dataset.label}: ${v == null ? '—' : v.toFixed(2)}`;
+                    },
+                },
+            },
+        },
+        scales: {
+            x: {
+                type: 'time',
+                time: {
+                    tooltipFormat: 'MMM d, HH:mm',
+                    displayFormats: {
+                        minute: 'HH:mm',
+                        hour:   'HH:mm',
+                        day:    'MMM d',
+                    },
+                },
+                grid: { color: 'rgba(255,255,255,0.06)' },
+                ticks: { color: '#9994a8', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+            },
+            y: {
+                position: 'left',
+                grid: { color: 'rgba(255,255,255,0.06)' },
+                title: { display: true, text: 'UV index', color: '#9994a8' },
+                ticks: { color: '#9994a8' },
+                beginAtZero: true,
+            },
+            yRaw: {
+                position: 'right',
+                grid: { display: false },
+                title: { display: true, text: 'raw counts', color: '#9994a8' },
+                ticks: { color: '#9994a8' },
+                beginAtZero: true,
+            },
+        },
+    },
+});
+
+const battChart = new Chart(document.getElementById('chartBatt'), {
+    type: 'line',
+    data: {
+        datasets: [{
+            label: 'batt_mv',
+            borderColor: '#7a9c7a',
+            backgroundColor: 'rgba(122,156,122,0.15)',
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0.2,
+            fill: true,
+        }],
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: '#1e1e28',
+                borderColor: '#2a2a38',
+                borderWidth: 1,
+                titleColor: '#e8e6e0',
+                bodyColor: '#9994a8',
+                padding: 10,
+                cornerRadius: 6,
+            },
+        },
+        scales: {
+            x: {
+                type: 'time',
+                time: {
+                    tooltipFormat: 'MMM d, HH:mm',
+                    displayFormats: {
+                        minute: 'HH:mm',
+                        hour:   'HH:mm',
+                        day:    'MMM d',
+                    },
+                },
+                grid: { color: 'rgba(255,255,255,0.06)' },
+                ticks: { color: '#9994a8', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+            },
+            y: {
+                grid: { color: 'rgba(255,255,255,0.06)' },
+                ticks: { color: '#9994a8' },
+                title: { display: true, text: 'mV', color: '#9994a8' },
+            },
+        },
+    },
+});
+
+function applySmoothing(mode) {
+    const w = smoothingWindow(mode, samples.length);
+    const ds = uvChart.data.datasets;
+    ds[0].data = toPoints(rollingMean(rawSeries.uvIndex, w));
+    ds[1].data = toPoints(rollingMean(rawSeries.uva,     w));
+    ds[2].data = toPoints(rollingMean(rawSeries.uvb,     w));
+    ds[3].data = toPoints(rollingMean(rawSeries.comp1,   w));
+    ds[4].data = toPoints(rollingMean(rawSeries.comp2,   w));
+    uvChart.update('none');
+
+    battChart.data.datasets[0].data = toPoints(rollingMean(rawSeries.batt, w));
+    battChart.update('none');
+
+    document.querySelectorAll('.smooth-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.smooth === mode);
+    });
+}
+
+document.querySelectorAll('.smooth-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        currentMode = btn.dataset.smooth;
+        localStorage.setItem(SMOOTH_KEY, currentMode);
+        applySmoothing(currentMode);
+    });
+});
+
+applySmoothing(currentMode);
+
+// ============================================================
+// Daily UV exposure chart (bar, category x-axis by date).
+// Robust to within-day chain-anchor mis-placement — useful even when
+// per-minute placement is approximate. Approx-only days are dimmed.
+// ============================================================
+const dailySummary = {{ daily_summary_json | safe }};
+const UV_HIGH_THRESHOLD = {{ uv_high_threshold }};
+
+if (dailySummary.length > 0) {
+    const dailyCtx = document.getElementById('chartDaily');
+    if (dailyCtx) {
+        new Chart(dailyCtx, {
+            type: 'bar',
+            data: {
+                labels: dailySummary.map(d => d.day),
+                datasets: [{
+                    label: 'peak UVI',
+                    data: dailySummary.map(d => d.peak_uv),
+                    backgroundColor: dailySummary.map(d =>
+                        d.approx_only ? 'rgba(197,189,236,0.35)' : '#c5bdec'
+                    ),
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e1e28',
+                        borderColor: '#2a2a38',
+                        borderWidth: 1,
+                        titleColor: '#e8e6e0',
+                        bodyColor: '#9994a8',
+                        padding: 10,
+                        cornerRadius: 6,
+                        callbacks: {
+                            label: ctx => {
+                                const d = dailySummary[ctx.dataIndex];
+                                return [
+                                    `peak UVI: ${d.peak_uv.toFixed(2)}`,
+                                    `hours ≥ UVI ${UV_HIGH_THRESHOLD}: ${d.hours_above_threshold}`,
+                                    `samples: ${d.n_samples}` + (d.approx_only ? ' (approx only)' : ''),
+                                ];
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#9994a8', maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.06)' },
+                        title: { display: true, text: 'peak UVI', color: '#9994a8' },
+                        ticks: { color: '#9994a8' },
+                        beginAtZero: true,
+                    },
+                },
+            },
+            plugins: [{
+                // Threshold line at UVI=3 (moderate sun, lupus risk floor).
+                id: 'thresholdLine',
+                afterDatasetsDraw: chart => {
+                    const yScale = chart.scales.y;
+                    const xScale = chart.scales.x;
+                    const y = yScale.getPixelForValue(UV_HIGH_THRESHOLD);
+                    const ctx = chart.ctx;
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(232,160,74,0.6)';
+                    ctx.setLineDash([4, 3]);
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(xScale.left, y);
+                    ctx.lineTo(xScale.right, y);
+                    ctx.stroke();
+                    ctx.restore();
+                },
+            }],
+        });
+    }
+}
+</script>
+{% endif %}
+{% endblock %}

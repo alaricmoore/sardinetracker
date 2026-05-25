@@ -842,9 +842,13 @@
                         {% if request.endpoint == 'uv_lag' %}class="active"{% endif %}>
                         uv lag
                     </a></li>
+                    <li><a href="{{ url_for('wearable') }}"
+                        {% if request.endpoint == 'wearable' %}class="active"{% endif %}>
+                        wearable
+                    </a></li>
                     <li><a href="{{ url_for('hrv_view') }}"
                         {% if request.endpoint == 'hrv_view' %}class="active"{% endif %}>
-                        interventions
+                        reactions
                     </a></li>
                     <li><a href="{{ url_for('clinical_record') }}"
                         {% if request.endpoint == 'clinical_record' %}class="active"{% endif %}>
@@ -947,7 +951,7 @@
             <span>sync</span>
         </a>
         {% endif %}
-        <div class="mobile-nav-item {% if request.endpoint in ('hrv_view', 'uv_lag', 'cycle_view', 'search', 'help_page', 'settings', 'clinical_report') %}active{% endif %}"
+        <div class="mobile-nav-item {% if request.endpoint in ('hrv_view', 'uv_lag', 'wearable', 'cycle_view', 'search', 'help_page', 'settings', 'clinical_report') %}active{% endif %}"
              id="mobileMoreBtn" style="cursor:pointer; position:relative;">
             <span class="mobile-nav-icon">...</span>
             <span>more</span>
@@ -955,8 +959,9 @@
                         background:var(--bg-elevated); border:1px solid var(--border-subtle);
                         border-radius:var(--radius-sm); padding:var(--space-sm) 0;
                         min-width:140px; box-shadow:0 -4px 12px rgba(0,0,0,0.3);">
-                <a href="{{ url_for('hrv_view') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">interventions</a>
+                <a href="{{ url_for('hrv_view') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">reactions</a>
                 <a href="{{ url_for('uv_lag') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">uv lag</a>
+                <a href="{{ url_for('wearable') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">wearable</a>
                 {% if track_cycle %}
                 <a href="{{ url_for('cycle_view') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">cycle</a>
                 {% endif %}

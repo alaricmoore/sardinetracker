@@ -57,7 +57,8 @@ Enabled via `track_cycle: true` in setup. Designed for patients where steroids, 
 - **Model sub-navigation from the dashboard**: accuracy, history, and pre-flare patterns are all hyperlinked from the model view so you don't have to dig through nested menus. A hidden `>>` chevron in the corner opens the Forecast Lab (easter-egg style,just because that's fun).
 - **Pre-flare pattern analysis** (`/forecast/patterns`): biometric averages, symptom frequencies, and RMSSD trajectories in the days before ER visits and major flares, with aggregate mean lines and confidence bands.
 - **UV lag analysis** (`/uv-lag`): Pearson correlation between UV dose and each symptom at lag windows of 0, 1, 2, 3, and 4 days — identifies your personal best-predicting UV-to-symptom delay.
-- **Intervention evaluation** (`/interventions`, nav label "interventions"): per-medication pre/post flare and autonomic shift analysis. Described in its own section below — it's a big enough feature to deserve one.
+- **Intervention evaluation** (`/interventions`, nav label "reactions"): per-medication pre/post flare and autonomic shift analysis, plus structured logging of how your body *reacts* to each intervention (side effects, rebounds, dose changes). Described in its own section below — it's a big enough feature to deserve one.
+- **UV wearable** (`/wearable`, nav label "wearable") — *prototype*: per-sample UV exposure from a DIY wrist sensor, charted over time with per-day peak/dose summaries. Experimental; see the dedicated section below.
 
 ### Flare Prediction Model
 
@@ -95,9 +96,9 @@ Transparent statistical scoring, tunable per-user, with 13 contributing categori
 - **Historical validation**: compare predictions against actual flare outcomes with clickable dates that jump to the daily entry for context.
 - **Weight optimization**: data-driven suggestions for improving model performance based on severity-aware false-positive and false-negative patterns.
 
-### Intervention Tracking & Side Effects (`/interventions`)
+### Intervention Tracking & Side Effects (`/interventions`, nav label "reactions")
 
-Purpose-built clinical evaluation view: "did this medication actually help?" in stats rather than generalizations.
+Purpose-built clinical evaluation view: "did this medication actually help?" in stats rather than generalizations. (The route is still `/interventions`; the nav now labels it **reactions** because the view is as much about how your body *reacts* to an intervention — side effects, rebounds, autonomic shifts — as about the intervention itself.)
 
 - **Per-medication cards**: one card for each medication flagged as primary or secondary intervention (toggle the flag in `/clinical#medications`). Shows pre/post:
     - **Flare impact**: total count, major/ER count, minor count, mean gap days, delta percentages color-coded by direction
@@ -109,6 +110,20 @@ Purpose-built clinical evaluation view: "did this medication actually help?" in 
 - **Events log per medication**: structured dated observations with types `side_effect` / `rebound` / `efficacy_change` / `dose_change` / `note`. Side effects get severity 0-10; other types skip the severity field.
 - **Global HRV trend chart** at the top of the page with intervention start lines and flare markers overlaid — the "am I trending up overall" glance kept from the old `/autonomic` view.
 - **Color-coded cards**: primary interventions get a teal left-border, secondary get purple, supplements get orange. Stat boxes inside each card use the global palette (RMSSD purple, SDNN blue, resp teal, flare red, minor amber) so the eye tracks consistent colors across the app.
+
+### UV Wearable (`/wearable`) — Prototype
+
+> **Status: experimental.** This is an optional, in-development feature for a DIY hardware add-on. The core tracker works fully without it. The hardware/firmware live in a separate project; what ships here is the server side — an ingest endpoint and a view. Treat the timestamps as approximate (see the caveat below).
+
+The motivation is the lupus use case: UV is a known photo-trigger, and a wrist-worn sensor measures *your actual exposure* at the body rather than the regional forecast that feeds the rest of the app's UV scoring. The two are complementary — forecast UV for prediction, measured UV for ground truth.
+
+- **The device**: a small wrist unit with a VEML6075 UV sensor (UVA/UVB channels), sampling roughly every 5 minutes and buffering readings until it can reach the server.
+- **Ingest** (`POST /api/uv/ingest`): the device uploads a CSV batch (one row per sample or event mark) authenticated with a bearer token. Rows are de-duplicated, so re-syncing overlapping data is safe. Bad I2C reads (a floating bus that pegs one channel to `0xFFFF`) are filtered out.
+- **`/wearable` view**: charts per-sample UVA, UVB, and computed UV index over a selectable window (24h / 1 week / 1 month / 6 months / all time), with the chart auto-bucketing to coarser bins as the range grows. A stats panel shows mean and peak values.
+- **Per-day summary**: peak UV index and **hours above the moderate threshold** (UVI ≥ 3.0, the WHO "sunburn risk for unprotected skin" line) for each day — a daily-dose view that's more robust than the chart to timing error.
+- **The timestamp caveat (important)**: the prototype device has no real-time clock. Samples taken while the device is connected are anchored to real time from the sync; samples buffered across reboots are *back-anchored* by chaining each boot's observed duration backward from the most recent sync. This is a heuristic — if the device sleeps or charges off between boots, those gaps get swallowed and older samples drift later than reality. Approximate rows are shown dimmed/small and can be hidden with `?include_approx=0`. The per-day peak/dose summaries tolerate this better than the minute-resolution chart does.
+
+**Setup** (only if you've built the device): add `wearable_token` (the shared bearer secret) and `wearable_user_id` (which account the readings belong to) to `config.json`. With those unset, the ingest endpoint returns a clear error and the view simply shows no data.
 
 ### Clinical Record Management
 
@@ -389,7 +404,7 @@ You'll need a free [Visual Crossing](https://visualcrossing.com) API key. Add it
 
 ### Evaluating a Medication or Intervention
 
-1. Navigate to "Interventions" from the main menu (or `/interventions`).
+1. Navigate to "Reactions" from the main menu (or `/interventions`).
 2. If no cards appear, flag a medication as primary or secondary intervention first: go to `/clinical#medications`, edit the medication, tick the intervention checkbox.
 3. Each intervention gets a card with pre/post flare stats, autonomic shift, and (for one-time doses) duration-of-effect.
 4. Click **+ log event** on any card to record a side effect (with severity 0-10), rebound, efficacy change, dose change, or general note — these events are timestamped and filterable.
@@ -664,6 +679,7 @@ sardine-track/
     ├── hrv.html                # Legacy autonomic view (still on disk, no longer nav-linked)
     ├── cycle.html              # Menstrual cycle calendar
     ├── uv_lag.html             # UV-symptom correlation at 0/1/2/3/4-day lags
+    ├── wearable.html           # UV wearable view (prototype) — per-sample UV chart + daily dose
     ├── clinical_record.html    # Labs, medications, events, clinicians, ANA
     ├── settings.html, admin.html
     ├── report.html

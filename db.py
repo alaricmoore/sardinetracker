@@ -104,6 +104,37 @@ def run_migrations() -> int:
             )
             applied += 1
 
+        # ---- uv_sensor_readings (added 2026-04-24 for uv-wearable ingest) ----
+        # Per-sample UV readings from the wearable. Different grain than uv_data
+        # (which is daily morning/noon/evening summaries from a forecast API).
+        # ts is NULL when we can't anchor reliably (rows from a previous boot
+        # that never synced before the device rebooted).
+        if _table_missing(c, "uv_sensor_readings"):
+            c.execute("""
+                CREATE TABLE uv_sensor_readings (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id       INTEGER NOT NULL REFERENCES users(id),
+                    boot_id       INTEGER NOT NULL,
+                    ms_since_boot INTEGER NOT NULL,
+                    ts            TEXT,
+                    ts_confidence TEXT,
+                    uva           INTEGER,
+                    uvb           INTEGER,
+                    comp1         INTEGER,
+                    comp2         INTEGER,
+                    uv_index      REAL,
+                    batt_mv       INTEGER,
+                    event_label   TEXT,
+                    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE(user_id, boot_id, ms_since_boot)
+                )
+            """)
+            c.execute(
+                "CREATE INDEX IF NOT EXISTS idx_uv_sensor_user_ts "
+                "ON uv_sensor_readings(user_id, ts)"
+            )
+            applied += 1
+
     return applied
 
 
@@ -1101,6 +1132,67 @@ def get_all_pending_doses_with_ntfy(window_start: str, window_end: str) -> list:
 def close_all_connections():
     """Close any open database connections."""
     pass
+
+
+def insert_uv_sensor_rows(rows: list[dict]) -> int:
+    """Bulk insert wearable UV samples and event marks. Returns rows accepted.
+
+    Uses INSERT OR IGNORE keyed on (user_id, boot_id, ms_since_boot) so a
+    re-sync of overlapping data is idempotent.
+    """
+    if not rows:
+        return 0
+    accepted = 0
+    with get_db() as conn:
+        for r in rows:
+            cur = conn.execute(
+                """INSERT OR IGNORE INTO uv_sensor_readings
+                   (user_id, boot_id, ms_since_boot, ts, ts_confidence,
+                    uva, uvb, comp1, comp2, uv_index, batt_mv, event_label)
+                   VALUES (:user_id, :boot_id, :ms_since_boot, :ts, :ts_confidence,
+                           :uva, :uvb, :comp1, :comp2, :uv_index, :batt_mv, :event_label)""",
+                r,
+            )
+            accepted += cur.rowcount
+    return accepted
+
+
+def get_recent_uv_sensor_readings(user_id: int, hours: int = 24) -> list[dict]:
+    """Wearable samples + events for a user within the last N hours.
+
+    Pass hours=0 to skip the time filter entirely (returns everything with
+    non-NULL ts). Excludes rows where ts is NULL (boots that couldn't be
+    wall-clock anchored). Ordered ts ASC.
+
+    Stored ts is naive local time with a T separator (Pi runs Chicago tz).
+    The cutoff must match both the format and the timezone — `datetime('now')`
+    alone returns UTC with a space separator, which silently broke comparison
+    for rows from the same date.
+    """
+    hours = int(hours)
+    with get_db() as conn:
+        if hours <= 0:
+            rows = conn.execute(
+                """SELECT ts, ts_confidence, uva, uvb, comp1, comp2, uv_index,
+                          batt_mv, event_label, boot_id
+                   FROM uv_sensor_readings
+                   WHERE user_id = ?
+                     AND ts IS NOT NULL
+                   ORDER BY ts ASC""",
+                (user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"""SELECT ts, ts_confidence, uva, uvb, comp1, comp2, uv_index,
+                           batt_mv, event_label, boot_id
+                    FROM uv_sensor_readings
+                    WHERE user_id = ?
+                      AND ts IS NOT NULL
+                      AND ts >= strftime('%Y-%m-%dT%H:%M:%S', 'now', 'localtime', '-{hours} hours')
+                    ORDER BY ts ASC""",
+                (user_id,),
+            ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ============================================================
