@@ -64,6 +64,25 @@ Model Dashboard + MODEL.md
 - Disabled cycle_phase weight in flare score — no predictive signal in current data
 - Added sparklines to forecast breakdown + CSV score export
 - Fixed data export to include all columns; updated forecast lab manual
+
+[2.2.0] - 2026-05-25
+Added
+
+- UV wearable view (`/wearable`) — prototype. Charts per-sample UVA/UVB/UV index from a DIY VEML6075 wrist sensor over selectable windows (24h/1w/1mo/6mo/all), with auto-bucketing as the range grows and a stats panel for mean/peak values
+- Per-day UV summary: peak UV index and hours above the moderate threshold (UVI ≥ 3.0) per day — a daily-dose view robust to timestamp drift
+- Ingest endpoint `POST /api/uv/ingest` — accepts a bearer-authenticated CSV batch from the device; idempotent (INSERT OR IGNORE on user/boot/ms), filters failed I2C reads, back-anchors timestamps for buffered/stale-boot samples
+- `uv_sensor_readings` table added via idempotent `run_migrations()` (no manual migration step)
+- Config options for the wearable: `wearable_token` (shared bearer secret) and `wearable_user_id` (target account); endpoint returns a clear error and the view shows no data when unset
+
+Changed
+
+- Nav: medication-evaluation view relabeled "interventions" → "reactions" (desktop and mobile). Route stays `/interventions`; the view is as much about how the body reacts to an intervention — side effects, rebounds, autonomic shifts — as the intervention itself
+- Added "wearable" to the nav (desktop and mobile "more" menu)
+
+Documentation
+
+- README: new "UV Wearable — Prototype" section, including the no-RTC timestamp caveat (back-anchoring heuristic, approximate rows shown dimmed)
+- README: intervention section reframed as "reactions"; wearable.html added to project structure
 - Updated help page with current model info + link to model explainer
 
 [2.2.0] — 2026-03-29
