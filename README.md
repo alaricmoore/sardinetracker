@@ -58,7 +58,7 @@ Enabled via `track_cycle: true` in setup. Designed for patients where steroids, 
 - **Pre-flare pattern analysis** (`/forecast/patterns`): biometric averages, symptom frequencies, and RMSSD trajectories in the days before ER visits and major flares, with aggregate mean lines and confidence bands.
 - **UV lag analysis** (`/uv-lag`): Pearson correlation between UV dose and each symptom at lag windows of 0, 1, 2, 3, and 4 days — identifies your personal best-predicting UV-to-symptom delay.
 - **Intervention evaluation** (`/interventions`, nav label "reactions"): per-medication pre/post flare and autonomic shift analysis, plus structured logging of how your body *reacts* to each intervention (side effects, rebounds, dose changes). Described in its own section below — it's a big enough feature to deserve one.
-- **UV wearable** (`/wearable`, nav label "wearable") — *prototype*: per-sample UV exposure from a DIY wrist sensor, charted over time with per-day peak/dose summaries. Experimental; see the dedicated section below.
+- **UV wearable** (`/wearable`, nav label "wearable") — *prototype*: per-sample UV exposure from a DIY wearable sensor, charted over time with per-day peak/dose summaries. Experimental; see the dedicated section below.
 
 ### Flare Prediction Model
 
@@ -115,9 +115,9 @@ Purpose-built clinical evaluation view: "did this medication actually help?" in 
 
 > **Status: experimental.** This is an optional, in-development feature for a DIY hardware add-on. The core tracker works fully without it. The hardware/firmware live in a separate project; what ships here is the server side — an ingest endpoint and a view. Treat the timestamps as approximate (see the caveat below).
 
-The motivation is the lupus use case: UV is a known photo-trigger, and a wrist-worn sensor measures *your actual exposure* at the body rather than the regional forecast that feeds the rest of the app's UV scoring. The two are complementary — forecast UV for prediction, measured UV for ground truth.
+The motivation is the lupus use case: UV is a known photo-trigger, and a wearable sensor measures *your actual exposure* at the body rather than the regional forecast that feeds the rest of the app's UV scoring. The two are complementary — forecast UV for prediction, measured UV for ground truth.
 
-- **The device**: a small wrist unit with a VEML6075 UV sensor (UVA/UVB channels), sampling roughly every 5 minutes and buffering readings until it can reach the server.
+- **The device**: a small unit with a VEML6075 UV sensor (UVA/UVB/IR channels), sampling roughly every 5 minutes and buffering readings until it can reach the server.
 - **Ingest** (`POST /api/uv/ingest`): the device uploads a CSV batch (one row per sample or event mark) authenticated with a bearer token. Rows are de-duplicated, so re-syncing overlapping data is safe. Bad I2C reads (a floating bus that pegs one channel to `0xFFFF`) are filtered out.
 - **`/wearable` view**: charts per-sample UVA, UVB, and computed UV index over a selectable window (24h / 1 week / 1 month / 6 months / all time), with the chart auto-bucketing to coarser bins as the range grows. A stats panel shows mean and peak values.
 - **Per-day summary**: peak UV index and **hours above the moderate threshold** (UVI ≥ 3.0, the WHO "sunburn risk for unprotected skin" line) for each day — a daily-dose view that's more robust than the chart to timing error.
