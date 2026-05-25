@@ -1195,6 +1195,38 @@ def get_recent_uv_sensor_readings(user_id: int, hours: int = 24) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# Every per-user table that a full "download my data" export should include.
+# uv_data is intentionally absent: it's location-keyed and shared across users
+# at the same coordinates, not personal data. Tables here must have a user_id
+# column. Keep this list in sync when new user-scoped tables are added.
+_USER_EXPORT_TABLES = (
+    "daily_observations", "lab_results", "ana_results", "clinical_events",
+    "medications", "medication_events", "clinicians", "bc_history",
+    "taper_schedules", "scheduled_doses", "user_preferences",
+    "uv_sensor_readings", "health_sync_events",
+)
+
+
+def export_table_for_user(table: str, user_id: int) -> dict:
+    """Dump every row of a user-scoped table for the data-export ZIP.
+
+    Returns {"columns": [...], "rows": [list of dicts]}. Columns come from the
+    cursor description so an empty table still yields a header row. The table
+    name is interpolated into the query, so it's checked against an allowlist
+    (_USER_EXPORT_TABLES) — never pass caller/user input directly.
+    """
+    if table not in _USER_EXPORT_TABLES:
+        raise ValueError(f"not an exportable user table: {table!r}")
+    with get_db() as conn:
+        cur = conn.execute(
+            f"SELECT * FROM {table} WHERE user_id = ? ORDER BY rowid",  # noqa: S608 (allowlisted)
+            (user_id,),
+        )
+        columns = [d[0] for d in cur.description]
+        rows = [dict(r) for r in cur.fetchall()]
+    return {"columns": columns, "rows": rows}
+
+
 # ============================================================
 # Contraceptive history functions
 # ============================================================

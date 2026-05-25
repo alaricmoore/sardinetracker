@@ -5916,6 +5916,22 @@ def _export_csvs_to_zip(zipf):
         'date', 'titer', 'screen_result', 'patterns', 'provider', 'notes'
     ]))
 
+    # Remaining user-scoped tables — complete (all-column) dumps so the export
+    # is truly "everything", not just the human-friendly curated views above.
+    # The raw .db is already in the zip; these make the data portable as CSV
+    # too. Generic dumper keeps this list the single place to extend.
+    for table, filename in [
+        ("medication_events",  "medication_events.csv"),
+        ("bc_history",         "bc_history.csv"),
+        ("taper_schedules",    "taper_schedules.csv"),
+        ("scheduled_doses",    "scheduled_doses.csv"),
+        ("uv_sensor_readings", "uv_sensor_readings.csv"),
+        ("health_sync_events", "health_sync_events.csv"),
+        ("user_preferences",   "user_preferences.csv"),
+    ]:
+        dump = db.export_table_for_user(table, uid())
+        zipf.writestr(filename, make_csv(dump["rows"], dump["columns"]))
+
 # ============================================================
 # Clinical Report
 # ============================================================
