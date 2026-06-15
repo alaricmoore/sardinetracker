@@ -188,15 +188,15 @@ The feature nevertheless scores **within-person deviation** (3-day recent vs 14-
 
 Conservative default weight (0.5) reflects this pending-validation state. Returns no contribution with fewer than 2 recent or 4 baseline values.
 
-### 9. Cycle Phase (PMS/Luteal High-Risk Window)
+### 9. Cycle Phase (Menstrual/Luteal High-Risk Window)
 
 Fires when the calculated cycle phase for the date is `pms` or `luteal`. Phase labels come from logged period starts and BBT-detected ovulation — see `_compute_phase_by_date_from_obs()` in `app.py`.
 
 | Condition | Points |
 |-----------|--------|
-| Phase is PMS or luteal | +1.0 x cycle_phase |
+| Phase is menstrual or luteal | +1.0 x cycle_phase |
 
-**Status.** Disabled in factory defaults (`cycle_phase = 0.0`). An earlier analysis during post-steroid cycle disruption found no predictive signal — cycles averaged 15.7 days (range 12–29) vs the 28-day assumption, ~90% of days were tagged high-risk, and the feature acted as a constant offset with no discriminative power. Fisher exact tests from that era: bleeding days 15.6% vs 20.9% non-bleeding flare rate (OR=0.70, p=0.24); PMS window OR=1.12 p=0.70.
+**Status.** Disabled in factory defaults (`cycle_phase = 0.0`). An earlier analysis during post-steroid cycle disruption found no predictive signal — cycles averaged 15.7 days (range 12–29) vs the 28-day assumption, ~90% of days were tagged high-risk, and the feature acted as a constant offset with no discriminative power. Fisher exact tests from that era: bleeding days 15.6% vs 20.9% non-bleeding flare rate (OR=0.70, p=0.24); menstrual window OR=1.12 p=0.70.
 
 Alaric's personal weight is currently tuned to **1.5** after cycles normalized and the phase labels regained discriminative value. Section 10 documents the independence audit that justifies keeping this feature active alongside RMSSD rather than treating the two as redundant.
 
@@ -220,12 +220,12 @@ Three findings emerged:
 
 **1. RMSSD does not fire preferentially in luteal.** Of 33 days where RMSSD deviation ≤ −25% (the high-weight rule fires), 51.5% fell in luteal phase — nearly identical to the baseline luteal share of 45.8% across the same window. Across 60/90/120-obs windows the gap flipped sign (−11.2pp, −0.3pp, +5.7pp) without directional pattern. If cycle phase were *causing* the RMSSD drop, luteal would be systematically over-represented on RMSSD-firing days. It isn't.
 
-**2. Cycle and RMSSD fire on almost entirely different majors.** Of 8 majors caught with cycle on and HRV zeroed (run 2), only 1 also had RMSSD firing — Feb 19 PMS, deviation −55%. The other 7 had RMSSD between −23% and +8%, below the scoring rule. HRV weight is not inflating major scores through redundant co-firing with cycle; the two features cover different physiological events on major-flare days.
+**2. Cycle and RMSSD fire on almost entirely different majors.** Of 8 majors caught with cycle on and HRV zeroed (run 2), only 1 also had RMSSD firing — Feb 19 menstrual, deviation −55%. The other 7 had RMSSD between −23% and +8%, below the scoring rule. HRV weight is not inflating major scores through redundant co-firing with cycle; the two features cover different physiological events on major-flare days.
 
 **3. HRV earns its weight on minors, with at least one catch genuinely outside the cycle window.** Three minor flares flipped miss → catch when HRV was added (run 2 → run 1):
 - 2026-03-14, luteal, RMSSD +40% — caught via instability / respiratory-rate, not the level rule
 - 2026-03-24, no cycle phase, RMSSD −24.2% — a catch cycle alone cannot make
-- 2026-04-12, PMS, RMSSD −29.1% — RMSSD level rule firing
+- 2026-04-12, menstrual, RMSSD −29.1% — RMSSD level rule firing
 
 The 2026-03-24 catch is the cleanest evidence of independent HRV signal: it occurred outside any cycle-high-risk phase, with cycle contributing zero and HRV tipping the score from 9.00 to 10.70.
 

@@ -50,6 +50,9 @@ images/
 memory/
 MEMORY.md
 
+# Working scratch / "kitchen" notes — never public
+notes/
+
 # Python venv
 .venv/
 biotracking.db*
