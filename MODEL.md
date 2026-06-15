@@ -108,6 +108,8 @@ Falls back to 0 contribution with fewer than 7 days of baseline history.
 
 ### 7. RMSSD Baseline Deviation
 
+> **Data-quality correction (2026-06-14).** Every RMSSD statistic in §7 and §7b below was computed from data corrupted by a bug in the iOS sync's `queryRMSSD`, which pooled inter-beat intervals across separate overnight HeartbeatSeries and applied no ectopic filter — inflating RMSSD up to 468 ms while same-day SDNN read ~12 ms. Fixed 2026-06-14 (per-series RMSSD + Malik 20% filter + median), and the prior ~365 days were re-backfilled from raw HealthKit. Treat the pre-correction numbers below — the ~105 ms non-flare baseline, the §7b pre-flare "oscillation", the 2026-02-24 "164 ms anomaly", and the tuned 1.25 personal weight — as **superseded**. The clean baseline (recent median ~24 ms) now matches Poliwczak's 23.5 ± 10.0 ms below, which the inflated 105 ms never did. Provisional clean-data re-validation is in the box at the end of §7b.
+
 Based on the cholinergic anti-inflammatory pathway: the vagus nerve tonically suppresses systemic inflammation. RMSSD (root mean square of successive differences in heartbeat intervals) is the best time-domain proxy for vagal tone. If vagal tone drops, the cholinergic brake weakens, and inflammation runs hotter.
 
 **Literature anchors.** Thanou et al. 2016 (n=53 SLE patients, 505 visit pairs) found ΔRMSSD inversely correlated with ΔSLEDAI within subject (p=0.007) and LF/HF ratio associated with the SELENA-SLEDAI Flare Index (p=0.008) — direct evidence that RMSSD tracks lupus disease activity longitudinally. Poliwczak et al. 2017 (24-hour Holter, 26 SLE women vs 30 controls) confirmed SLE patients have chronically reduced r-MSSD (23.5 ± 10.0 ms vs 35.7 ± 16.3 ms, p=0.002), so baseline parasympathetic impairment is expected in SLE even between flares.
@@ -123,8 +125,8 @@ Based on the cholinergic anti-inflammatory pathway: the vagus nerve tonically su
 | Deviation <= -15% | +0.75 x rmssd_deviation_weight |
 
 **Personal data (post-bugfix rerun, n=26 flare clusters: 8 major/ER, 8 minor, 10 unspecified):**
-- Non-flare baseline RMSSD: ~105 ms (arithmetic mean), ~66 ms (geometric mean)
-- **On flare day, majors/ER drop robustly per-event.** 7 of 8 events fall below baseline — day-0 arithmetic mean 42 ms (-60% vs baseline), median 20 ms (-81%). Wilcoxon signed-rank of per-event %drops vs 0: p=0.023. The one exception (2026-02-24 ER, RMSSD 164 ms / +56%) is a candidate data anomaly worth a sensor check.
+- Non-flare baseline RMSSD: ~105 ms (arithmetic mean), ~66 ms (geometric mean) *— superseded (contaminated); clean baseline ~30–50 ms, recent median ~24 ms.*
+- **On flare day, majors/ER drop robustly per-event.** 7 of 8 events fall below baseline — day-0 arithmetic mean 42 ms (-60% vs baseline), median 20 ms (-81%). Wilcoxon signed-rank of per-event %drops vs 0: p=0.023. The one exception (2026-02-24 ER, RMSSD 164 ms / +56%) is a candidate data anomaly worth a sensor check. *— confirmed 2026-06-14: this was the `queryRMSSD` aggregation bug, not a sensor glitch.*
 - **Minors are noisy per-event.** Only 5 of 8 drop; the other 3 show +70% to +150% rises. Arithmetic mean drop -28%, Wilcoxon p=0.38. Minor-flare detection relies more on the instability metric (section 7b) and respiratory rate (section 8) than on the level-based rule here.
 - **Aggregating across severities dilutes the major signal.** All-flare day-0 mean drop is only -30% (Wilcoxon p=0.06) because unspecified events contribute a mix of rises and falls; the majors-only number is the one that matches Thanou 2016.
 - Pre-flare day-1/-2 Cohen's d vs non-flare baseline: -0.28 all flares, -0.18 majors alone, -0.37 minors.
@@ -132,13 +134,15 @@ Based on the cholinergic anti-inflammatory pathway: the vagus nerve tonically su
 
 Interpretation: Thanou's longitudinal ΔRMSSD-ΔSLEDAI relationship reproduces in this single-patient dataset **for major events specifically** — the level-based rule in section 7 is carrying the majors, not the minors. The within-patient trajectory — decline into a flare, partial recovery after — matches the literature for majors; minor events require the instability and respiratory-rate features to catch.
 
-Default weight is a conservative 0.5. Alaric's personal weight is currently tuned to **1.25** based on observed performance (forecast accuracy view showed positive lift on caught vs missed flares). Apple Watch RMSSD has ~29% measurement error vs chest strap (MAPE), but tracks relative within-person changes adequately for this purpose.
+Default weight is a conservative 0.5. Alaric's personal weight is currently tuned to **1.25** based on observed performance (forecast accuracy view showed positive lift on caught vs missed flares). *— superseded: tuned on contaminated data. Clean-data re-validation (§7b box) suggests deviation is the **weaker** of the two RMSSD features here (fires in 52% of quiet windows); pending re-tune on corrected data.* Apple Watch RMSSD has ~29% measurement error vs chest strap (MAPE), but tracks relative within-person changes adequately for this purpose.
 
 Returns no contribution with fewer than 4 values in either window.
 
 ### 7b. RMSSD Instability (Day-to-Day |Δ|)
 
 Captures autonomic *chaos* rather than level-based withdrawal. **Independent signal from section 7** — level-based deviation measures *where* RMSSD sits, instability measures *how much it's swinging*; both can fire on the same day when the trajectory is collapsing chaotically. The two features are additive in scoring.
+
+*Superseded (2026-06-14) — the "oscillation" described in this paragraph is now known to be the cross-series aggregation artifact, not physiology: on corrected data, clean day-to-day |ΔRMSSD| transitions average ~8 ms, not ~120 ms. Retained for the record; see the re-validation box below.*
 
 Prototyped from the post-bugfix rerun analysis (`rmssd_flare_rerun.py` in the project root, generating `rmssd_flare_rerun.png`). That analysis, stratified by severity at n=26 flare clusters, showed that in the week before major flares RMSSD oscillates wildly — surging at day -6 (~100 ms), crashing at day -4/-3 (~50-60 ms), rebounding at day -2 (~85 ms), then collapsing on flare day (~45 ms). Mean day-to-day |ΔRMSSD| at the day-1 → day-0 transition reached ~120 ms in majors vs ~60-70 ms in minors and non-flare transitions. Crucially, the oscillation is a **major-flare-specific** phenomenon; minor flares show flatter trajectories, which is why the older aggregated analysis (n=21, not split by severity) showed a weaker pattern.
 
@@ -153,6 +157,12 @@ Prototyped from the post-bugfix rerun analysis (`rmssd_flare_rerun.py` in the pr
 | Deviation >= 25% | +0.75 x rmssd_instability_weight |
 
 Conservative default weight (0.5) pending validation. Requires >=3 recent deltas and >=10 baseline deltas to compute.
+
+> **Clean-data re-validation (provisional, 2026-06-14, N=6 — underpowered).** After the data-quality correction, a pre-onset-window analysis — did the feature fire in the 3 days *before* a major flare that had a clean (non-flare) run-up, vs matched quiet windows — on the corrected data found:
+> - **Instability**: fired before **4/6 (67%)** of clean major onsets vs **31%** of quiet windows — a ~2× pre-flare enrichment. This *reverses* an interim "instability is artifact" read, which was itself an artifact of the contaminated data.
+> - **Deviation (§7)**: fired before only **1/6 (17%)** of onsets but in **52%** of quiet windows — poor specificity (RMSSD sits below its 30-day baseline more than half the time, consistent with chronic parasympathetic suppression), so the −15% threshold rarely discriminates.
+>
+> Only 6 majors had a clean non-flare 3-day run-up (most arrive in clusters), so this is suggestive, not conclusive. Both weights left at 0.5 pending more clean flare events.
 
 ### 8. Respiratory Rate Baseline Deviation
 
