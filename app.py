@@ -3615,8 +3615,14 @@ def _normalize_lab_rows(text, existing_keys):
         if not date_str or not test or not valraw:
             continue
 
-        num = parse_float(valraw)
-        qual = None if num is not None else valraw
+        # Keep bounded/inequality results ("<20", ">24.0") and titers as text.
+        # parse_float would strip the "<" and store a bare 20, which reads like a
+        # real value at the threshold rather than a negative below it.
+        if "<" in valraw or ">" in valraw:
+            num, qual = None, valraw
+        else:
+            num = parse_float(valraw)
+            qual = None if num is not None else valraw
         unit = col("units", "unit") or None
         provider = col("doctor", "provider", "ordering provider") or None
         facility = col("lab", "facility", "lab_facility", "lab facility") or None
