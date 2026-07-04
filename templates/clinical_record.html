@@ -81,10 +81,15 @@
 
     <!-- Add form -->
     <div class="add-toggle-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-md);">
+    <div style="display:flex; gap:var(--space-sm); flex-wrap:wrap;">
     <button class="btn btn-secondary" onclick="toggleForm('form-lab')">
         + add lab result
     </button>
-    
+    <button class="btn btn-secondary" onclick="toggleForm('form-lab-import')">
+        ↥ import CSV
+    </button>
+    </div>
+
     <!-- Export section -->
     <details class="mobile-export-collapse">
         <summary>export options</summary>
@@ -100,6 +105,27 @@
     </details>
 </div>
 
+
+    <div class="add-form-panel" id="form-lab-import">
+        <form method="POST" action="{{ url_for('import_labs_preview') }}" enctype="multipart/form-data">
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0;">
+                Upload or paste a lab CSV — columns <b>Date, Test, Value, Units</b>
+                (Lab and Doctor optional). Known tests get a reference range and
+                high/low flag filled in automatically. You review everything before
+                anything is saved.
+            </p>
+            <div class="form-group">
+                <label>CSV file</label>
+                <input type="file" name="csv_file" accept=".csv,text/csv">
+            </div>
+            <div class="form-group">
+                <label>…or paste rows</label>
+                <textarea name="csv_text" rows="4"
+                    placeholder="Date,Test,Value,Units&#10;2026-01-06,anti-dsDNA,18.42,IU/mL"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">review import →</button>
+        </form>
+    </div>
 
     <div class="add-form-panel" id="form-lab">
         <form method="POST" action="{{ url_for('add_lab') }}">

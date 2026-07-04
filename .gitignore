@@ -56,3 +56,8 @@ notes/
 # Python venv
 .venv/
 biotracking.db*
+venv/
+.venv-backup/
+
+# Imported clinical records — PHI, never commit
+imports/

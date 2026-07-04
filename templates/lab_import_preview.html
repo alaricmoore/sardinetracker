@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}import labs — review — sardinetrack{% endblock %}
+
+{% block head %}
+<style>
+  .imp-wrap { max-width: 880px; margin: 0 auto; }
+  .imp-summary { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0 0 1rem;
+    font-size: 0.95rem; color: var(--text-muted); }
+  .imp-summary b { color: var(--text); }
+  .imp-summary .new { color: var(--success, #2f7d46); }
+  .imp-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .imp-table th, .imp-table td { padding: 7px 9px; border-bottom: 1px solid var(--border, #e0e5e3);
+    text-align: left; white-space: nowrap; }
+  .imp-table th { font-size: 0.72rem; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text-muted); }
+  .imp-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .imp-table tr.dup td { opacity: 0.55; }
+  .badge { font-size: 0.7rem; font-weight: 700; padding: 1px 8px; border-radius: 11px; }
+  .badge.new { background: var(--success-bg, #e2f0e6); color: var(--success, #2f7d46); }
+  .badge.dup { background: var(--surface-2, #f0f1ef); color: var(--text-muted); }
+  .flag-high { color: #c0392b; font-weight: 600; } .flag-low { color: #b06a12; font-weight: 600; }
+  .imp-actions { display: flex; gap: .75rem; align-items: center; margin-top: 1.25rem; flex-wrap: wrap; }
+  .imp-scroll { overflow-x: auto; border: 1px solid var(--border, #e0e5e3); border-radius: 8px; }
+  .imp-selbar { font-size: 0.85rem; color: var(--text-muted); margin-bottom: .5rem; }
+  .imp-selbar a { color: var(--accent, #0f6b78); cursor: pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="imp-wrap">
+  <h1 style="margin-bottom:.4rem;">Import labs — review</h1>
+  <p class="imp-summary">
+    Parsed <b>{{ rows|length }}</b> rows:
+    <span class="new"><b>{{ n_new }}</b> new</span>
+    <span><b>{{ n_dup }}</b> already in your record</span>
+  </p>
+
+  {% if rows %}
+  <form method="POST" action="{{ url_for('import_labs_commit') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="rows_json" value="{{ rows_json }}">
+
+    <p class="imp-selbar">Duplicates are unchecked by default.
+      <a onclick="impSelect(true)">select all</a> ·
+      <a onclick="impSelect(false)">select none</a></p>
+
+    <div class="imp-scroll">
+      <table class="imp-table">
+        <thead>
+          <tr><th></th><th>Date</th><th>Test</th><th>Value</th><th>Unit</th><th>Reference</th><th>Flag</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr class="{{ 'dup' if r.status == 'duplicate' else '' }}">
+            <td><input type="checkbox" name="include" value="{{ loop.index0 }}"
+                       {{ 'checked' if r.status == 'new' else '' }}></td>
+            <td>{{ r.date }}</td>
+            <td>{{ r.test_name }}</td>
+            <td class="num">{{ r.numeric_value if r.numeric_value is not none else r.qualitative_result }}</td>
+            <td>{{ r.unit or '' }}</td>
+            <td>{{ r.reference_range or '' }}</td>
+            <td>
+              {%- if r.flag == 'high' %}<span class="flag-high">high</span>
+              {%- elif r.flag == 'low' %}<span class="flag-low">low</span>
+              {%- elif r.flag %}{{ r.flag }}{% endif -%}
+            </td>
+            <td><span class="badge {{ 'new' if r.status == 'new' else 'dup' }}">{{ r.status }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="imp-actions">
+      <button type="submit" class="btn btn-primary">Import selected</button>
+      <a class="btn btn-secondary" href="{{ url_for('clinical_record') }}#labs">Cancel</a>
+    </div>
+  </form>
+  {% else %}
+  <p>No usable rows found. The CSV needs at least <b>Date</b>, <b>Test</b>, and <b>Value</b> columns.</p>
+  <a class="btn btn-secondary" href="{{ url_for('clinical_record') }}#labs">Back</a>
+  {% endif %}
+</div>
+
+<script>
+  function impSelect(on) {
+    document.querySelectorAll('input[name="include"]').forEach(function(c){ c.checked = on; });
+  }
+</script>
+{% endblock %}

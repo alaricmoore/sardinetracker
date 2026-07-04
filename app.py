@@ -3567,6 +3567,134 @@ def add_lab():
     return redirect(url_for("clinical_record") + "#labs")
 
 
+# ============================================================
+# Bulk lab import (CSV upload / paste) with a review step
+# ============================================================
+
+def _lab_dedup_key(date_str, test_name, num, qual):
+    """Stable key for spotting a lab already in the record.
+
+    Numeric values are formatted with %g so "3" and "3.0" collapse to one key.
+    """
+    if num is not None:
+        try:
+            v = "%g" % float(num)
+        except (TypeError, ValueError):
+            v = str(num).strip().lower()
+    else:
+        v = (qual or "").strip().lower()
+    return (date_str, (test_name or "").strip().lower(), v)
+
+
+def _normalize_lab_rows(text, existing_keys):
+    """Parse a lab CSV (Date, Test, Value, Units[, Lab, Doctor, ...]) into
+    lab dicts, auto-filling reference range/flag for known tests and tagging
+    each row 'new' or 'duplicate' against what's already stored.
+
+    Header matching is case-insensitive and tolerant of a few aliases, so the
+    same parser handles the portal exports and the hand-kept CSVs.
+    """
+    import csv, io
+    from import_labs import lookup_reference, parse_date, parse_float
+
+    rows = []
+    reader = csv.DictReader(io.StringIO(text))
+    for raw in reader:
+        low = {(k or "").strip().lower(): (v or "").strip()
+               for k, v in raw.items()}
+
+        def col(*names):
+            for n in names:
+                if low.get(n):
+                    return low[n]
+            return ""
+
+        date_str = parse_date(col("date", "collected", "date collected", "result date"))
+        test = col("test", "test_name", "test name", "analyte", "name")
+        valraw = col("value", "result", "numeric_value", "observation value")
+        if not date_str or not test or not valraw:
+            continue
+
+        num = parse_float(valraw)
+        qual = None if num is not None else valraw
+        unit = col("units", "unit") or None
+        provider = col("doctor", "provider", "ordering provider") or None
+        facility = col("lab", "facility", "lab_facility", "lab facility") or None
+        refrange = col("reference", "reference_range", "reference range", "range") or None
+        flag = col("flag", "abnormal") or None
+
+        if num is not None and (not refrange or not flag):
+            rr, fl = lookup_reference(test, num)
+            refrange = refrange or rr
+            flag = flag or fl
+
+        key = _lab_dedup_key(date_str, test, num, qual)
+        rows.append({
+            "date": date_str, "test_name": test,
+            "numeric_value": num, "qualitative_result": qual,
+            "unit": unit, "reference_range": refrange, "flag": flag,
+            "provider": provider, "lab_facility": facility,
+            "status": "duplicate" if key in existing_keys else "new",
+        })
+    return rows
+
+
+@app.route("/clinical/labs/import/preview", methods=["POST"])
+@login_required
+def import_labs_preview():
+    """Parse an uploaded or pasted lab CSV and show a review table.
+
+    Nothing is written yet — the parsed rows ride along as hidden JSON and are
+    only committed from the preview page, so a bad file never touches the DB.
+    """
+    text = ""
+    f = request.files.get("csv_file")
+    if f and f.filename:
+        text = f.read().decode("utf-8", errors="replace")
+    if not text.strip():
+        text = request.form.get("csv_text", "") or ""
+    if not text.strip():
+        return redirect(url_for("clinical_record") + "#labs")
+
+    existing = db.get_lab_results(uid())
+    existing_keys = {
+        _lab_dedup_key(l["date"], l["test_name"],
+                       l.get("numeric_value"), l.get("qualitative_result"))
+        for l in existing
+    }
+    rows = _normalize_lab_rows(text, existing_keys)
+    return render_template(
+        "lab_import_preview.html",
+        rows=rows,
+        rows_json=json.dumps(rows),
+        n_new=sum(1 for r in rows if r["status"] == "new"),
+        n_dup=sum(1 for r in rows if r["status"] == "duplicate"),
+    )
+
+
+@app.route("/clinical/labs/import/commit", methods=["POST"])
+@login_required
+def import_labs_commit():
+    """Insert only the rows the user kept checked on the preview page."""
+    try:
+        rows = json.loads(request.form.get("rows_json", "[]"))
+    except (ValueError, TypeError):
+        rows = []
+    include = set(request.form.getlist("include"))
+    inserted = 0
+    for i, r in enumerate(rows):
+        if str(i) not in include:
+            continue
+        data = {k: r.get(k) for k in (
+            "date", "test_name", "numeric_value", "qualitative_result",
+            "unit", "reference_range", "flag", "provider", "lab_facility")}
+        try:
+            db.add_lab_result(uid(), data)
+            inserted += 1
+        except Exception:
+            continue
+    return redirect(url_for("clinical_record") + "#labs")
+
 
 @app.route("/clinical/ana/add", methods=["POST"])
 def add_ana():
