@@ -130,8 +130,13 @@ def _compute_symptom_burden_delta(obs_date: str, obs_by_date: dict) -> float | N
     """Symptom burden as deviation from personal rolling baseline.
 
     Returns the delta between the 3-day recent average symptom count and
-    the 14-day rolling baseline (days -17 through -3, avoiding pre-flare
+    the 14-day rolling baseline (days -17 through -4, avoiding pre-flare
     contamination). Positive = symptoms accelerating above normal.
+
+    The baseline starts at day -4, not -3, so it does not share day -3 with
+    the recent window (days -1..-3). Overlapping at -3 let the leading edge of
+    the pre-flare symptom ramp inflate the baseline and shrink the delta it is
+    meant to detect.
     Returns None if insufficient baseline data (< 7 days).
     """
     target = datetime.strptime(obs_date, "%Y-%m-%d").date()
@@ -147,9 +152,10 @@ def _compute_symptom_burden_delta(obs_date: str, obs_by_date: dict) -> float | N
     if not recent:
         return None
 
-    # 14-day baseline window: days -17 through -3 (avoids pre-flare ramp)
+    # 14-day baseline window: days -17 through -4 (gap at -3 avoids sharing the
+    # leading ramp day with the recent window)
     baseline = []
-    for offset in range(3, 18):
+    for offset in range(4, 18):
         d = (target - timedelta(days=offset)).isoformat()
         c = _daily_symptom_count(obs_by_date.get(d))
         if c is not None:
@@ -510,8 +516,8 @@ SCORING CATEGORIES
 
       Computation:
       • 3-day recent average: mean daily symptom count over days -1, -2, -3
-      • 14-day rolling baseline: mean daily count over days -17 through -3
-        (gap avoids pre-flare ramp contaminating the baseline)
+      • 14-day rolling baseline: mean daily count over days -17 through -4
+        (gap at day -3 avoids pre-flare ramp contaminating the baseline)
       • Delta = recent_avg - baseline_avg
 
       Scoring:

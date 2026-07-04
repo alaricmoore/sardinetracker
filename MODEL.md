@@ -42,6 +42,8 @@ Steps relative to personal baseline, adjusted for sleep.
 
 Overexertion = `(steps / personal_step_baseline) x (8 / hours_slept)`. Falls back to raw steps/hours ratio if no baseline is set.
 
+> **Personal finding (2026-07-04) — disabled for Alaric (`exertion_weight = 0`).** On clean data (41 onsets, onset = first flare-day of a cluster), Alaric's activity *drops* before flares rather than rising: median steps fall to **63% of quiet baseline at day −3** (5383 vs 8621, Mann-Whitney p=0.002), recovering by day −4/−5. The feature as written fires *more often on quiet days (46%) than pre-flare days (38%, p=0.026)* — because her `steps_baseline` is unset, scoring uses the crude `steps/hours_slept ≥ 1500` fallback, which her higher-step / shorter-sleep quiet days trip. A confusion-matrix check over the full-feature era (2026-02-15→present, threshold 9.5) confirmed the trade of zeroing exertion + temperature together: **recall 80%→76%, precision 64%→71%** — 8 false alarms removed, only 2 *minor* flares newly missed (both borderline, 9.7 and 10.4), zero majors lost. The prodromal *drop* is a candidate future feature (weak alone: precision ~16% vs 13% base rate, but largely independent of RMSSD). Factory `DEFAULT_WEIGHTS` keep `exertion_weight = 1.0` for new users, whose own data has not yet spoken — this is an N=1 personal tuning, not a model-wide change.
+
 ### 3. Basal Temperature Delta
 
 Deviation from personal temperature baseline in Fahrenheit.
@@ -51,6 +53,8 @@ Deviation from personal temperature baseline in Fahrenheit.
 | Delta >= 0.8 F | +3.0 x temperature_weight |
 | Delta >= 0.5 F | +2.0 x temperature_weight |
 | Delta >= 0.3 F | +1.0 x temperature_weight |
+
+> **Personal finding (2026-07-04) — disabled for Alaric (`temperature_weight = 0`).** Basal temperature does not rise before or during Alaric's flares. Non-flare days actually run *warmer* than flare days (mean +0.21 F vs +0.11 F; the +0.3 F rule fires on 48% of non-flare vs 38% of flare days), and her **ER-visit days run cool** (mean −0.53 F, fired 0 of 3). Point-biserial correlation of temp delta with flare is −0.08 (p=0.16) — if anything slightly inverse. Her flares present as livedo / cardiac / neuro rather than febrile, so the scored direction (higher temp = risk) adds false-positive points on quiet days without catching flares. Included in the exertion+temperature confusion-matrix trade above. As with exertion, factory default stays `1.0` (fever is a legitimate flare sign for many SARD patients); this is N=1 tuning.
 
 ### 4. Individual Symptoms
 
@@ -93,10 +97,12 @@ Pain and fatigue are the strongest single-day predictors in this dataset (Cohen'
 
 **Computation:**
 - **Recent**: Mean daily symptom count over days -1, -2, -3
-- **Baseline**: Mean daily symptom count over days -17 through -3 (14-day window)
+- **Baseline**: Mean daily symptom count over days -17 through -4 (14-day window)
 - **Delta** = recent - baseline
 
-The gap between the acute window (days -1 to -3) and the baseline window (days -3 to -17) is critical. Without it, the 3-day pre-flare symptom ramp bleeds into the baseline and dulls the signal.
+The gap between the acute window (days -1 to -3) and the baseline window (days -4 to -17) is critical. Without it, the 3-day pre-flare symptom ramp bleeds into the baseline and dulls the signal.
+
+> **Bug fix (2026-07-04).** The baseline window previously ran days -17 through **-3**, sharing day -3 with the recent window — exactly the overlap this gap is meant to prevent. The leading edge of the pre-flare ramp (day -3) was inflating the baseline and shrinking the delta. Fixed to start at day -4 (`range(4, 18)` in `_compute_symptom_burden_delta`). Practical effect on Alaric's current data is small — the delta shifts by at most ±0.27 (mean +0.017, in the expected direction), flipping one scoring tier on one day and zero predictions over the full-feature era — but the fix matters more as symptom ramps steepen and for any user whose baseline is shorter.
 
 | Condition | Points |
 |-----------|--------|
