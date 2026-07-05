@@ -72,6 +72,10 @@
         backfill
         {% if flare_history %}<span class="tab-count">{{ flare_history|length }}</span>{% endif %}
     </button>
+    <button class="tab-btn" onclick="switchTab('documents')">
+        documents
+        {% if documents %}<span class="tab-count">{{ documents|length }}</span>{% endif %}
+    </button>
 </div>
 
 <!-- ============================================================
@@ -1640,6 +1644,106 @@ CLINICIANS TAB
     {% else %}
     <div class="empty-state">
         <p>No flare events recorded yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================================
+     DOCUMENTS TAB
+     ============================================================ -->
+<div class="tab-panel" id="tab-documents">
+
+    <div class="add-toggle-row" style="margin-bottom:var(--space-md);">
+        <button class="btn btn-secondary" onclick="toggleForm('form-document')">
+            + upload document
+        </button>
+    </div>
+
+    <div class="add-form-panel" id="form-document">
+        <form method="POST" action="{{ url_for('add_document') }}" enctype="multipart/form-data">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>PDF file *</label>
+                    <input type="file" name="pdf_file" accept="application/pdf,.pdf" required>
+                </div>
+                <div class="form-group">
+                    <label>title *</label>
+                    <input type="text" name="title" required
+                           placeholder="e.g. Rheumatology — Heinlen — ER follow-up">
+                </div>
+                <div class="form-group">
+                    <label>date</label>
+                    <input type="date" name="date">
+                </div>
+                <div class="form-group">
+                    <label>type</label>
+                    <select name="doc_type">
+                        <option value="">—</option>
+                        <option>clinic note</option>
+                        <option>lab report</option>
+                        <option>pathology</option>
+                        <option>imaging</option>
+                        <option>other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>specialty</label>
+                    <input type="text" name="specialty" placeholder="e.g. rheumatology">
+                </div>
+                <div class="form-group">
+                    <label>provider</label>
+                    <input type="text" name="provider" placeholder="e.g. Dr. Standard">
+                </div>
+                <div class="form-group">
+                    <label>facility</label>
+                    <input type="text" name="facility">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>summary (searchable — what the note says)</label>
+                <textarea name="summary" rows="3"
+                    placeholder="Assessment / plan / key findings — this is the text search looks through."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">upload →</button>
+        </form>
+    </div>
+
+    {% if documents %}
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+        <thead>
+            <tr><th>date</th><th>title</th><th>type</th><th>provider</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for d in documents %}
+            <tr>
+                <td>{{ d.date or '—' }}</td>
+                <td>{{ d.title }}{% if d.specialty %}
+                    <span style="color:var(--text-muted);font-size:0.85em;">· {{ d.specialty }}</span>{% endif %}</td>
+                <td>{{ d.doc_type or '' }}</td>
+                <td>{{ d.provider or '' }}</td>
+                <td style="white-space:nowrap;">
+                    <a class="btn btn-sm btn-secondary"
+                       href="{{ url_for('document_file', doc_id=d.id) }}" target="_blank" rel="noopener">view</a>
+                    <a class="btn btn-sm btn-secondary"
+                       href="{{ url_for('document_file', doc_id=d.id) }}?download=1">↓</a>
+                    <form method="POST" action="{{ url_for('delete_document', doc_id=d.id) }}"
+                          style="display:inline;" onsubmit="return confirm('Delete this document? The PDF file will be removed.');">
+                        <button type="submit" class="btn btn-sm btn-secondary">delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% if d.summary %}
+            <tr><td></td><td colspan="4"
+                style="color:var(--text-muted);font-size:0.85em;padding-top:0;">{{ d.summary }}</td></tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No documents yet. Upload a clinic note, lab report, or imaging PDF.</p>
     </div>
     {% endif %}
 </div>

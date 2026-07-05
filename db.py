@@ -135,6 +135,38 @@ def run_migrations() -> int:
             )
             applied += 1
 
+        # ---- clinical_documents (added 2026-07-04) ----
+        # A retrievable library for uploaded clinical PDFs (clinic notes, path,
+        # imaging). The file itself lives on disk under DOCUMENTS_DIR/user_<id>/;
+        # only the stored filename + metadata + searchable text live here, so the
+        # DB and its backups stay small. `summary` is the reliable searchable
+        # content (some scanned PDFs have no text layer to extract).
+        if _table_missing(c, "clinical_documents"):
+            c.execute("""
+                CREATE TABLE clinical_documents (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id        INTEGER NOT NULL REFERENCES users(id),
+                    date           TEXT,
+                    title          TEXT NOT NULL,
+                    doc_type       TEXT,
+                    specialty      TEXT,
+                    provider       TEXT,
+                    facility       TEXT,
+                    file_name      TEXT,
+                    orig_name      TEXT,
+                    summary        TEXT,
+                    extracted_text TEXT,
+                    event_id       INTEGER,
+                    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+                    FOREIGN KEY (event_id) REFERENCES clinical_events(id) ON DELETE SET NULL
+                )
+            """)
+            c.execute(
+                "CREATE INDEX IF NOT EXISTS idx_clin_docs_user_date "
+                "ON clinical_documents(user_id, date)"
+            )
+            applied += 1
+
     return applied
 
 
@@ -694,6 +726,64 @@ def get_clinical_events(user_id: int, event_type: Optional[str] = None,
             params
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+# ============================================================
+# clinical documents (uploaded PDFs — files live on disk)
+# ============================================================
+
+def add_clinical_document(user_id: int, data: dict) -> int:
+    """Insert a clinical document record. Returns the new row id."""
+    if not data.get("title"):
+        raise ValueError("clinical_document requires a title")
+    fields = ["date", "title", "doc_type", "specialty", "provider", "facility",
+              "file_name", "orig_name", "summary", "extracted_text", "event_id"]
+    present = {"user_id": user_id}
+    present.update({k: data[k] for k in fields if k in data})
+    columns = ", ".join(present.keys())
+    placeholders = ", ".join(["?" for _ in present])
+    with get_db() as conn:
+        cur = conn.execute(
+            f"INSERT INTO clinical_documents ({columns}) VALUES ({placeholders})",
+            list(present.values())
+        )
+        return cur.lastrowid
+
+
+def get_clinical_documents(user_id: int) -> list[dict]:
+    """All clinical documents for a user, newest first (by document date)."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM clinical_documents WHERE user_id = ? "
+            "ORDER BY COALESCE(date, created_at) DESC, id DESC",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_clinical_document(user_id: int, doc_id: int) -> Optional[dict]:
+    """One clinical document, scoped to the owning user (None if not theirs)."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM clinical_documents WHERE id = ? AND user_id = ?",
+            (doc_id, user_id)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_clinical_document(user_id: int, doc_id: int) -> Optional[str]:
+    """Delete a document row (scoped to the user). Returns its stored file_name
+    so the caller can remove the file from disk, or None if nothing matched."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT file_name FROM clinical_documents WHERE id = ? AND user_id = ?",
+            (doc_id, user_id)
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute("DELETE FROM clinical_documents WHERE id = ? AND user_id = ?",
+                     (doc_id, user_id))
+        return row["file_name"]
 
 
 # ============================================================

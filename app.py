@@ -3312,6 +3312,7 @@ def clinical_record():
     meds = db.get_all_medications(uid())
     events = db.get_clinical_events(uid())
     clinicians = db.get_all_clinicians(uid())
+    documents = db.get_clinical_documents(uid())
     test_names = db.get_lab_test_names(uid())
 
     # Split active/inactive meds
@@ -3349,6 +3350,7 @@ def clinical_record():
         inactive=inactive,
         events=events,
         clinicians=clinicians,
+        documents=documents,
         test_names=test_names,
         today=date.today().isoformat(),
         taper_by_med=taper_by_med,
@@ -3700,6 +3702,83 @@ def import_labs_commit():
         except Exception:
             continue
     return redirect(url_for("clinical_record") + "#labs")
+
+
+# ============================================================
+# Clinical document library (uploaded PDFs, stored on disk)
+# ============================================================
+DOCUMENTS_DIR = os.path.join(os.path.dirname(__file__), "documents")
+
+
+def _user_docs_dir(user_id: int) -> str:
+    d = os.path.join(DOCUMENTS_DIR, f"user_{user_id}")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+@app.route("/clinical/document/add", methods=["POST"])
+@login_required
+def add_document():
+    """Store an uploaded PDF on disk and record its metadata.
+
+    The file is saved under a random token name (no traversal, no collisions);
+    the original filename is kept only for display and download.
+    """
+    import secrets
+    f = request.files.get("pdf_file")
+    form = request.form
+    if not (f and f.filename) or not f.filename.lower().endswith(".pdf"):
+        return redirect(url_for("clinical_record") + "#documents")
+    blob = f.read()
+    if not blob or len(blob) > 20 * 1024 * 1024:   # 20 MB cap
+        return redirect(url_for("clinical_record") + "#documents")
+
+    title = (form.get("title") or "").strip() or \
+        os.path.splitext(os.path.basename(f.filename))[0]
+    stored = secrets.token_hex(16) + ".pdf"
+    with open(os.path.join(_user_docs_dir(uid()), stored), "wb") as out:
+        out.write(blob)
+    db.add_clinical_document(uid(), {
+        "date": form.get("date") or None,
+        "title": title,
+        "doc_type": form.get("doc_type") or None,
+        "specialty": form.get("specialty") or None,
+        "provider": form.get("provider") or None,
+        "facility": form.get("facility") or None,
+        "file_name": stored,
+        "orig_name": os.path.basename(f.filename),
+        "summary": (form.get("summary") or "").strip() or None,
+    })
+    return redirect(url_for("clinical_record") + "#documents")
+
+
+@app.route("/clinical/document/<int:doc_id>/file")
+@login_required
+def document_file(doc_id):
+    """Serve a stored PDF, scoped to the owning user. Inline by default;
+    ?download=1 forces a download."""
+    doc = db.get_clinical_document(uid(), doc_id)
+    if not doc or not doc.get("file_name"):
+        return Response("Not found", status=404)
+    return send_from_directory(
+        _user_docs_dir(uid()), doc["file_name"],
+        mimetype="application/pdf",
+        as_attachment=bool(request.args.get("download")),
+        download_name=doc.get("orig_name") or "document.pdf",
+    )
+
+
+@app.route("/clinical/document/<int:doc_id>/delete", methods=["POST"])
+@login_required
+def delete_document(doc_id):
+    """Remove a document row and its file from disk (scoped to the user)."""
+    fname = db.delete_clinical_document(uid(), doc_id)
+    if fname:
+        try:
+            os.remove(os.path.join(_user_docs_dir(uid()), fname))
+        except OSError:
+            pass
+    return redirect(url_for("clinical_record") + "#documents")
 
 
 @app.route("/clinical/ana/add", methods=["POST"])
