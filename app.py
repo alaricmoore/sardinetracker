@@ -3717,15 +3717,29 @@ def _user_docs_dir(user_id: int) -> str:
 
 
 def _extract_pdf_text(blob: bytes) -> str | None:
-    """Best-effort text extraction for search. Returns None for scanned PDFs
-    (no text layer) or if pypdf isn't installed — the summary field carries
-    search in those cases, so this never blocks an upload."""
+    """Best-effort text extraction for search. Prefers poppler's pdftotext
+    (usually present, much better results here), falls back to pypdf. Returns
+    None for scanned PDFs (no text layer) or if neither is available — the
+    summary field carries search then, so this never blocks an upload."""
+    # 1) pdftotext (poppler)
+    try:
+        import subprocess, tempfile
+        with tempfile.NamedTemporaryFile(suffix=".pdf") as tf:
+            tf.write(blob)
+            tf.flush()
+            out = subprocess.run(["pdftotext", "-q", tf.name, "-"],
+                                 capture_output=True, timeout=30)
+        text = out.stdout.decode("utf-8", "replace").strip()
+        if text:
+            return text[:100000]
+    except Exception:
+        pass
+    # 2) pypdf fallback
     try:
         import io
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(blob))
-        text = "\n".join((page.extract_text() or "") for page in reader.pages)
-        text = text.strip()
+        text = "\n".join((page.extract_text() or "") for page in reader.pages).strip()
         return text[:100000] or None
     except Exception:
         return None
