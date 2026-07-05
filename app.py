@@ -3716,6 +3716,21 @@ def _user_docs_dir(user_id: int) -> str:
     return d
 
 
+def _extract_pdf_text(blob: bytes) -> str | None:
+    """Best-effort text extraction for search. Returns None for scanned PDFs
+    (no text layer) or if pypdf isn't installed — the summary field carries
+    search in those cases, so this never blocks an upload."""
+    try:
+        import io
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(blob))
+        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        text = text.strip()
+        return text[:100000] or None
+    except Exception:
+        return None
+
+
 @app.route("/clinical/document/add", methods=["POST"])
 @login_required
 def add_document():
@@ -3748,6 +3763,7 @@ def add_document():
         "file_name": stored,
         "orig_name": os.path.basename(f.filename),
         "summary": (form.get("summary") or "").strip() or None,
+        "extracted_text": _extract_pdf_text(blob),
     })
     return redirect(url_for("clinical_record") + "#documents")
 

@@ -23,3 +23,6 @@ flask-wtf>=1.2.0
 # Authentication
 flask-login>=0.6.3
 bcrypt>=4.0.0
+
+# PDF text extraction for the clinical document library
+pypdf>=4.0

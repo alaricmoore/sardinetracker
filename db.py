@@ -972,8 +972,24 @@ def search_notes(user_id: int, query: str) -> list[dict]:
         ).fetchall()
         results.extend([dict(row) for row in rows])
 
-    # Sort all results by date
-    results.sort(key=lambda x: x["date"])
+        # Also search uploaded clinical documents (title + summary + text)
+        rows = conn.execute(
+            """SELECT COALESCE(date, substr(created_at, 1, 10)) as date,
+                      'document' as category,
+                      COALESCE(title, '') ||
+                        CASE WHEN summary IS NOT NULL THEN ' — ' || summary ELSE '' END
+                        as matched_text,
+                      id as doc_id
+               FROM clinical_documents
+               WHERE user_id = ?
+                 AND (title LIKE ? OR summary LIKE ? OR extracted_text LIKE ?)
+               ORDER BY date ASC""",
+            (user_id, patterns, patterns, patterns)
+        ).fetchall()
+        results.extend([dict(row) for row in rows])
+
+    # Sort all results by date (documents with no date sort by created_at above)
+    results.sort(key=lambda x: x["date"] or "")
     return results
 
 
