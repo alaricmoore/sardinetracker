@@ -1,15 +1,15 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>{{ view_label }} record{% if clinician %} — for {{ clinician.name }}{% endif %}</title>
   <style>
-    :root{ --bg:#eef1f0; --surface:#fff; --ink:#15201f; --ink2:#47555a; --muted:#7c8a8c;
-      --line:#e0e5e3; --accent:#0f6b78; --accent-soft:#d7ebee; --accent-ink:#0a4a54; }
-    @media (prefers-color-scheme:dark){ :root{ --bg:#0d1211; --surface:#161d1c; --ink:#eaefed;
-      --ink2:#b0bcbd; --muted:#78878a; --line:#26302e; --accent:#3ea9b8; --accent-soft:#123037; --accent-ink:#8fd4dd; } }
+    /* Site palette (matches sardinetrack base.html, dark default) */
+    :root{ --bg:#0e0e12; --surface:#16161d; --ink:#ffffff; --ink2:rgb(202,196,223);
+      --muted:rgb(159,157,183); --line:#2a2a38; --accent:#9b72cf;
+      --accent-soft:#1e1a2b; --accent-ink:#c3a6ea; }
     body{ margin:0; background:var(--bg); color:var(--ink);
       font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
     .wrap{ max-width:860px; margin:0 auto; padding:0 18px 60px; }
