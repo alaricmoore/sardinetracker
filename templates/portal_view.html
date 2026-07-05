@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{{ view_label }} record{% if clinician %} — for {{ clinician.name }}{% endif %}</title>
+  <style>
+    :root{ --bg:#eef1f0; --surface:#fff; --ink:#15201f; --ink2:#47555a; --muted:#7c8a8c;
+      --line:#e0e5e3; --accent:#0f6b78; --accent-soft:#d7ebee; --accent-ink:#0a4a54; }
+    @media (prefers-color-scheme:dark){ :root{ --bg:#0d1211; --surface:#161d1c; --ink:#eaefed;
+      --ink2:#b0bcbd; --muted:#78878a; --line:#26302e; --accent:#3ea9b8; --accent-soft:#123037; --accent-ink:#8fd4dd; } }
+    body{ margin:0; background:var(--bg); color:var(--ink);
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
+    .wrap{ max-width:860px; margin:0 auto; padding:0 18px 60px; }
+    .banner{ background:var(--accent-soft); color:var(--accent-ink); font-size:12.5px;
+      text-align:center; padding:7px 12px; border-radius:0 0 8px 8px; }
+    header{ padding:26px 0 20px; border-bottom:2px solid var(--accent); margin-bottom:24px; }
+    .prep{ font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent);
+      font-weight:700; margin:0 0 10px; }
+    h1{ font-size:clamp(22px,4vw,28px); margin:0 0 4px; }
+    .sub{ color:var(--ink2); font-size:14px; margin:0; }
+    .shell{ background:var(--surface); border:1px solid var(--line); border-radius:12px;
+      padding:26px; text-align:center; color:var(--ink2); }
+    .shell h2{ color:var(--ink); font-size:17px; margin:0 0 8px; }
+    footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--line);
+      color:var(--muted); font-size:11.5px; line-height:1.6; }
+  </style>
+</head>
+<body>
+  <div class="banner">Confidential patient record · read-only · shared at the patient's direction</div>
+  <div class="wrap">
+    <header>
+      <p class="prep">{{ view_label }} view{% if clinician %} · prepared for {{ clinician.name }}{% endif %}</p>
+      <h1>Clinical summary</h1>
+      <p class="sub">A curated, {{ view_label|lower }}-facing view of the patient's record.</p>
+    </header>
+
+    <div class="shell">
+      <h2>Access confirmed</h2>
+      <p>This link is valid and read-only. The full {{ view_label|lower }} view
+         is being finalized and will appear here.</p>
+    </div>
+
+    <footer>
+      Read-only. This link expires {{ (link.expires_at or '')[:10] }} and can be turned off by the
+      patient at any time. Confidential — please do not forward.
+    </footer>
+  </div>
+</body>
+</html>

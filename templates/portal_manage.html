@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}clinician portal links — sardinetrack{% endblock %}
+{% block head %}
+<style>
+  .pl-wrap { max-width: 900px; margin: 0 auto; }
+  .pl-card { background: var(--surface, #fff); border: 1px solid var(--border, #e0e5e3);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
+  .pl-card h2 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--text-muted); margin: 0 0 12px; }
+  .pl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; }
+  .pl-link { border: 1px solid var(--border, #e0e5e3); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .pl-link .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .pl-link .who { font-weight: 600; }
+  .pl-link .meta { color: var(--text-muted); font-size: 12.5px; margin-top: 2px; }
+  .status { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 11px; }
+  .s-active { background: #e2f0e6; color: #2f7d46; }
+  .s-expired { background: #f6ecd7; color: #b06a12; }
+  .s-revoked { background: #eef1f0; color: #7c8a8c; }
+  @media (prefers-color-scheme: dark){ .s-active{background:#16301f;color:#4fb069;}
+    .s-expired{background:#332816;color:#d59a3c;} .s-revoked{background:#1c2422;color:#8a9794;} }
+  .urlrow { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .urlrow input { flex: 1; font-family: ui-monospace, monospace; font-size: 12px; padding: 6px 8px;
+    border: 1px solid var(--border, #ccd4d1); border-radius: 6px; background: var(--surface-2, #f4f6f5); color: var(--text); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border, #e0e5e3); white-space: nowrap; }
+  th { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pl-wrap">
+  <h1 style="margin-bottom:4px;">Clinician portal links</h1>
+  <p style="color:var(--text-muted); margin-top:0;">
+    Create a read-only link for a specific clinician and specialty. Time-limited,
+    revocable, and logged — anyone with the link can view that one curated view, nothing else.</p>
+
+  <!-- Create -->
+  <div class="pl-card">
+    <h2>Create a link</h2>
+    <form method="POST" action="{{ url_for('portals_create') }}">
+      <div class="pl-grid">
+        <div class="form-group">
+          <label>clinician</label>
+          <select name="clinician_id">
+            <option value="">— (unassigned) —</option>
+            {% for c in clinicians %}
+            <option value="{{ c.id }}">{{ c.name }}{% if c.specialty %} · {{ c.specialty }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>view</label>
+          <select name="view" required>
+            {% for key, label in views.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>expires in (days)</label>
+          <input type="number" name="days" value="30" min="1" max="365">
+        </div>
+        <div class="form-group">
+          <label>label (optional)</label>
+          <input type="text" name="label" placeholder="e.g. OMRF consult">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:8px;">create link</button>
+    </form>
+  </div>
+
+  <!-- Active links -->
+  <div class="pl-card">
+    <h2>Your links</h2>
+    {% if links %}
+      {% for l in links %}
+      {% set status = 'revoked' if l.revoked_at else ('expired' if (l.expires_at and l.expires_at < now) else 'active') %}
+      <div class="pl-link">
+        <div class="top">
+          <div>
+            <span class="who">{{ views.get(l.view, l.view) }}</span>
+            {% if l.clinician_name %}<span class="meta">· {{ l.clinician_name }}</span>{% endif %}
+            {% if l.label %}<span class="meta">· {{ l.label }}</span>{% endif %}
+          </div>
+          <span class="status s-{{ status }}">{{ status }}</span>
+        </div>
+        <div class="meta">
+          expires {{ (l.expires_at or '—')[:10] }} ·
+          viewed {{ l.access_count }}×{% if l.last_accessed_at %} · last {{ l.last_accessed_at[:16] }}{% endif %}
+        </div>
+        {% if status == 'active' %}
+        <div class="urlrow">
+          <input type="text" readonly value="{{ base_url }}/portal/{{ l.token }}"
+                 id="url-{{ l.id }}" onclick="this.select()">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="copyUrl('url-{{ l.id }}')">copy</button>
+          <form method="POST" action="{{ url_for('portals_revoke', link_id=l.id) }}" style="display:inline;"
+                onsubmit="return confirm('Turn off this link? The clinician will lose access immediately.');">
+            <button type="submit" class="btn btn-secondary btn-sm">revoke</button>
+          </form>
+        </div>
+        {% elif status == 'expired' %}
+        <div class="urlrow">
+          <form method="POST" action="{{ url_for('portals_revoke', link_id=l.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-secondary btn-sm">remove</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color:var(--text-muted);">No links yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Access log -->
+  <div class="pl-card">
+    <h2>Access log</h2>
+    {% if access_log %}
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>when</th><th>view</th><th>who it was for</th><th>path</th></tr></thead>
+        <tbody>
+          {% for a in access_log %}
+          <tr>
+            <td>{{ a.accessed_at[:16] }}</td>
+            <td>{{ views.get(a.view, a.view) }}</td>
+            <td>{{ a.clinician_name or a.label or '—' }}</td>
+            <td style="color:var(--text-muted);">{{ a.path }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted);">No accesses recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  function copyUrl(id) {
+    const el = document.getElementById(id);
+    el.select();
+    navigator.clipboard && navigator.clipboard.writeText(el.value);
+  }
+</script>
+{% endblock %}

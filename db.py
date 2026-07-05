@@ -167,6 +167,47 @@ def run_migrations() -> int:
             )
             applied += 1
 
+        # ---- portal_links + portal_access_log (added 2026-07-05) ----
+        # Capability-link clinician portal. A link is a long random token tied
+        # to one clinician + one specialty view, time-limited and revocable.
+        # The token IS the credential; portal routes are read-only and never
+        # touch write/admin/export endpoints. access_count/last_accessed give a
+        # quick summary; portal_access_log keeps the per-hit trail.
+        if _table_missing(c, "portal_links"):
+            c.execute("""
+                CREATE TABLE portal_links (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id          INTEGER NOT NULL REFERENCES users(id),
+                    token            TEXT NOT NULL UNIQUE,
+                    clinician_id     INTEGER,
+                    view             TEXT NOT NULL,
+                    label            TEXT,
+                    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+                    expires_at       TEXT,
+                    revoked_at       TEXT,
+                    last_accessed_at TEXT,
+                    access_count     INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (clinician_id) REFERENCES clinicians(id) ON DELETE SET NULL
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_portal_links_token "
+                      "ON portal_links(token)")
+            applied += 1
+
+        if _table_missing(c, "portal_access_log"):
+            c.execute("""
+                CREATE TABLE portal_access_log (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    link_id     INTEGER NOT NULL,
+                    accessed_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    path        TEXT,
+                    FOREIGN KEY (link_id) REFERENCES portal_links(id) ON DELETE CASCADE
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_portal_log_link "
+                      "ON portal_access_log(link_id, accessed_at)")
+            applied += 1
+
     return applied
 
 
@@ -784,6 +825,83 @@ def delete_clinical_document(user_id: int, doc_id: int) -> Optional[str]:
         conn.execute("DELETE FROM clinical_documents WHERE id = ? AND user_id = ?",
                      (doc_id, user_id))
         return row["file_name"]
+
+
+# ============================================================
+# clinician portal links (capability tokens, read-only)
+# ============================================================
+
+def create_portal_link(user_id: int, clinician_id, view: str,
+                       label=None, expires_at=None) -> dict:
+    """Mint a new capability link. Returns {'id', 'token'}."""
+    import secrets
+    token = secrets.token_urlsafe(32)
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO portal_links
+                   (user_id, token, clinician_id, view, label, expires_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_id, token, clinician_id, view, label, expires_at))
+        return {"id": cur.lastrowid, "token": token}
+
+
+def get_portal_link_by_token(token: str) -> Optional[dict]:
+    """Look up a link by its token (any owner — the token identifies both the
+    link and its user). Validation of expiry/revocation is the caller's job."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM portal_links WHERE token = ?", (token,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_portal_links(user_id: int) -> list[dict]:
+    """The owner's links (with clinician name/specialty), newest first."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT pl.*, c.name AS clinician_name,
+                      c.specialty AS clinician_specialty
+               FROM portal_links pl
+               LEFT JOIN clinicians c ON c.id = pl.clinician_id
+               WHERE pl.user_id = ?
+               ORDER BY pl.created_at DESC""",
+            (user_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def revoke_portal_link(user_id: int, link_id: int) -> None:
+    """Revoke a link (scoped to the owner; no-op if already revoked)."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE portal_links SET revoked_at = datetime('now') "
+            "WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+            (link_id, user_id))
+
+
+def record_portal_access(link_id: int, path: str) -> None:
+    """Bump the link's access counters and append to the access log."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE portal_links SET access_count = access_count + 1, "
+            "last_accessed_at = datetime('now') WHERE id = ?", (link_id,))
+        conn.execute(
+            "INSERT INTO portal_access_log (link_id, path) VALUES (?, ?)",
+            (link_id, path))
+
+
+def get_portal_access_log(user_id: int, limit: int = 100) -> list[dict]:
+    """Recent access entries across the owner's links."""
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT al.accessed_at, al.path, pl.view, pl.label,
+                      c.name AS clinician_name
+               FROM portal_access_log al
+               JOIN portal_links pl ON pl.id = al.link_id
+               LEFT JOIN clinicians c ON c.id = pl.clinician_id
+               WHERE pl.user_id = ?
+               ORDER BY al.accessed_at DESC
+               LIMIT ?""",
+            (user_id, limit)).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ============================================================

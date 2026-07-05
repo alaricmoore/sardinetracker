@@ -899,7 +899,7 @@ def favicon_files(filename):
 @app.before_request
 def require_login():
     """Redirect unauthenticated users to login page."""
-    if request.endpoint in ('login', 'register', 'static', 'favicon_files', 'api_health_sync', 'api_flare_status'):
+    if request.endpoint in ('login', 'register', 'static', 'favicon_files', 'api_health_sync', 'api_flare_status', 'api_uv_ingest', 'portal_view'):
         return
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
@@ -3809,6 +3809,105 @@ def delete_document(doc_id):
         except OSError:
             pass
     return redirect(url_for("clinical_record") + "#documents")
+
+
+# ============================================================
+# Clinician portal — capability-link, READ-ONLY, per-specialty
+# ============================================================
+# Public routes here take a token, not a login. They MUST NOT reach any write,
+# admin, or export endpoint — this section only ever reads curated data for the
+# link's own user. Management routes below (/portals*) require login as normal.
+
+PORTAL_VIEWS = {
+    "rheumatology": "Rheumatology",
+    "cardiology":   "Cardiology",
+    "dermatology":  "Dermatology",
+    "neurology":    "Neurology",
+    "primary_care": "Primary care",
+}
+
+
+def _valid_portal_link(token: str):
+    """Return the link row if the token is real, not revoked, not expired —
+    else None. This is the sole gate for portal access."""
+    link = db.get_portal_link_by_token(token)
+    if not link or link.get("revoked_at"):
+        return None
+    exp = link.get("expires_at")
+    if exp and exp < datetime.utcnow().isoformat():
+        return None
+    return link
+
+
+@app.after_request
+def _portal_security_headers(resp):
+    """Keep portal pages out of indexes and shared caches."""
+    if request.path.startswith("/portal/"):
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+        resp.headers["Cache-Control"] = "no-store"
+        resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
+
+
+@app.route("/portal/<token>")
+def portal_view(token):
+    """The clinician-facing read-only view. No login: the token is the key."""
+    link = _valid_portal_link(token)
+    if not link:
+        return Response(render_template("portal_invalid.html"), status=403)
+    db.record_portal_access(link["id"], request.path)
+    owner_id = link["user_id"]
+    clinician = None
+    if link.get("clinician_id"):
+        clinician = next((c for c in db.get_all_clinicians(owner_id)
+                          if c["id"] == link["clinician_id"]), None)
+    return render_template(
+        "portal_view.html",
+        link=link,
+        view=link["view"],
+        view_label=PORTAL_VIEWS.get(link["view"], link["view"]),
+        clinician=clinician,
+    )
+
+
+@app.route("/portals")
+@login_required
+def portals_manage():
+    links = db.get_portal_links(uid())
+    return render_template(
+        "portal_manage.html",
+        links=links,
+        clinicians=db.get_all_clinicians(uid()),
+        access_log=db.get_portal_access_log(uid(), limit=50),
+        views=PORTAL_VIEWS,
+        now=datetime.utcnow().isoformat(),
+        base_url=request.host_url.rstrip("/"),
+    )
+
+
+@app.route("/portals/create", methods=["POST"])
+@login_required
+def portals_create():
+    form = request.form
+    view = (form.get("view") or "").strip()
+    if view not in PORTAL_VIEWS:
+        return redirect(url_for("portals_manage"))
+    clinician_id = int(form["clinician_id"]) if form.get("clinician_id") else None
+    label = (form.get("label") or "").strip() or None
+    try:
+        days = max(1, min(365, int(form.get("days") or 30)))
+    except ValueError:
+        days = 30
+    expires_at = (datetime.utcnow() + timedelta(days=days)).isoformat()
+    db.create_portal_link(uid(), clinician_id, view, label, expires_at)
+    return redirect(url_for("portals_manage"))
+
+
+@app.route("/portals/<int:link_id>/revoke", methods=["POST"])
+@login_required
+def portals_revoke(link_id):
+    db.revoke_portal_link(uid(), link_id)
+    return redirect(url_for("portals_manage"))
 
 
 @app.route("/clinical/ana/add", methods=["POST"])

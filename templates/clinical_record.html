@@ -1337,10 +1337,15 @@ CLINICIANS TAB
 <div class="tab-panel" id="tab-clinicians">
 
     <div class="add-toggle-row" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-md);">
+    <div style="display:flex; gap:var(--space-sm); flex-wrap:wrap;">
     <button class="btn btn-secondary" onclick="toggleForm('form-clinician')">
         + add clinician
     </button>
-    
+    <a class="btn btn-secondary" href="{{ url_for('portals_manage') }}">
+        share portal links →
+    </a>
+    </div>
+
     <!-- Export button -->
     <button class="btn btn-primary btn-sm" onclick="exportClinicians()">
         Download CSV ↓
