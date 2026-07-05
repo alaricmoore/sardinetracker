@@ -167,6 +167,48 @@
                         <option value="vitamin D">
                         <option value="D-dimer">
                     </datalist>
+                    <datalist id="unit-types">
+                        <option value="DIF biopsy">
+                        <option value="H&E biopsy">
+                        <option value="punch biopsy">
+                        <option value="shave biopsy">
+                        <option value="excisional biopsy">
+                        <option value="incisional biopsy">
+                        <option value="needle biopsy">
+                        <option value="core biopsy">
+                        <option value="X-ray">
+                        <option value="CT scan">
+                        <option value="MRI">
+                        <option value="ultrasound">
+                        <option value="PET scan">
+                        <option value="DEXA scan">
+                        <option value="mammogram">
+                        <option value="fluoroscopy">
+                        <option value="EKG/ECG">
+                        <option value="EMG">
+                        <option value="EEG">
+                        <option value="NCV">
+                        <option value="pulmonary function">
+                        <option value="stress test">
+                        <option value="echocardiogram">
+                        <option value="endoscopy">
+                        <option value="colonoscopy">
+                        <option value="holter monitor">
+                        <option value="IU/mL">
+                        <option value="mg/dL">
+                        <option value="g/dL">
+                        <option value="ng/mL">
+                        <option value="µg/L">
+                        <option value="mmol/L">
+                        <option value="cells/µL">
+                        <option value="K/µL">
+                        <option value="/mm³">
+                        <option value="%">
+                        <option value="ratio">
+                        <option value="titer">
+                        <option value="U/L">
+                        <option value="other">
+                    </datalist>
                 </div>
                 <div class="form-group">
                     <label>numeric value</label>
@@ -246,7 +288,9 @@
             </tr>
         </thead>
         <tbody>
-            {% for lab in labs | sort(attribute='date', reverse=True) %}
+            {% set labs_sorted = labs | sort(attribute='date', reverse=True) %}
+            {% set labs_show_all = request.args.get('labs') == 'all' %}
+            {% for lab in (labs_sorted if labs_show_all else labs_sorted[:60]) %}
             <!-- Read-only row -->
             <tr id="lab-row-{{ lab.id }}" class="data-row">
                 <td class="mono">{{ lab.date }}</td>
@@ -315,72 +359,8 @@
                             </div>
                             <div class="form-group">
                                 <label>unit|or|type</label>
-                                <select name="unit">
-                                    <option value="">—</option>
-                        
-                        <!-- Biopsy types -->
-                        <optgroup label="Biopsy Types">
-                            <option value="DIF biopsy">DIF (direct immunofluorescence)</option>
-                            <option value="H&E biopsy">H&E (hematoxylin & eosin)</option>
-                            <option value="punch biopsy">Punch biopsy</option>
-                            <option value="shave biopsy">Shave biopsy</option>
-                            <option value="excisional biopsy">Excisional biopsy</option>
-                            <option value="incisional biopsy">Incisional biopsy</option>
-                            <option value="needle biopsy">Needle biopsy</option>
-                            <option value="core biopsy">Core biopsy</option>
-                        </optgroup>
-                        
-                        <!-- Imaging -->
-                        <optgroup label="Imaging">
-                            <option value="X-ray">X-ray</option>
-                            <option value="CT scan">CT scan</option>
-                            <option value="MRI">MRI</option>
-                            <option value="ultrasound">Ultrasound</option>
-                            <option value="PET scan">PET scan</option>
-                            <option value="DEXA scan">DEXA scan (bone density)</option>
-                            <option value="mammogram">Mammogram</option>
-                            <option value="fluoroscopy">Fluoroscopy</option>
-                        </optgroup>
-                        
-                        <!-- Diagnostic Tests -->
-                        <optgroup label="Diagnostic Tests">
-                            <option value="EKG/ECG">EKG/ECG (electrocardiogram)</option>
-                            <option value="EMG">EMG (electromyography)</option>
-                            <option value="EEG">EEG (electroencephalogram)</option>
-                            <option value="NCV">NCV (nerve conduction velocity)</option>
-                            <option value="pulmonary function">Pulmonary function test</option>
-                            <option value="stress test">Stress test</option>
-                            <option value="echocardiogram">Echocardiogram</option>
-                            <option value="endoscopy">Endoscopy</option>
-                            <option value="colonoscopy">Colonoscopy</option>
-                            <option value="holter monitor">Holter monitor</option>
-                        </optgroup>
-                        
-                        <!-- Common lab units -->
-                        <optgroup label="Concentration">
-                            <option value="IU/mL">IU/mL</option>
-                            <option value="mg/dL">mg/dL</option>
-                            <option value="g/dL">g/dL</option>
-                            <option value="ng/mL">ng/mL</option>
-                            <option value="µg/L">µg/L</option>
-                            <option value="mmol/L">mmol/L</option>
-                        </optgroup>
-                        
-                        <optgroup label="Count">
-                            <option value="cells/µL">cells/µL</option>
-                            <option value="K/µL">K/µL</option>
-                            <option value="/mm³">/mm³</option>
-                        </optgroup>
-                        
-                        <optgroup label="Other">
-                            <option value="%">%</option>
-                            <option value="ratio">ratio</option>
-                            <option value="titer">titer</option>
-                            <option value="U/L">U/L</option>
-                        </optgroup>
-                        
-                        <option value="other">Other (add to notes)</option>
-                    </select>
+                                <input type="text" name="unit" list="unit-types"
+                                       value="{{ lab.unit or '' }}" placeholder="unit or type">
                 </div>
                             <div class="form-group">
                                 <label>qualitative</label>
@@ -437,6 +417,13 @@
         </tbody>
     </table>
 </div>
+{% if not labs_show_all and labs|length > 60 %}
+<div style="text-align:center; margin-top:var(--space-md);">
+    <a class="btn btn-secondary" href="{{ url_for('clinical_record') }}?labs=all#labs">show all {{ labs|length }} labs</a>
+    <p style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">
+        showing the 60 most recent — the full history is heavier to load</p>
+</div>
+{% endif %}
 {% else %}
 <div class="empty-state">
     <p>No lab results yet.</p>
