@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Rheumatology record{% if clinician %} — for {{ clinician.name }}{% endif %}</title>
+  <style>
+    /* Site palette (sardinetrack base.html, dark default) */
+    :root{
+      --bg:#0e0e12; --surface:#16161d; --elevated:#1e1e28; --input:#23232f;
+      --line:#2a2a38; --line2:#38384a;
+      --ink:#ffffff; --ink2:rgb(202,196,223); --muted:rgb(159,157,183);
+      --accent:#9b72cf; --accent-soft:#1e1a2b; --accent-ink:#c3a6ea;
+      --pos:#4fb069; --pos-bg:#16301f; --hi:#e05656; --hi-bg:#331616;
+      --lo:#d59a3c; --lo-bg:#30260f;
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5;
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;}
+    .banner{background:var(--accent-soft);color:var(--accent-ink);font-size:12.5px;
+      text-align:center;padding:7px 12px;}
+    .wrap{max-width:880px;margin:0 auto;padding:0 18px 70px;}
+    header{padding:24px 0 18px;border-bottom:2px solid var(--accent);margin-bottom:22px;}
+    .prep{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:700;margin:0 0 9px;}
+    h1{font-size:clamp(22px,4vw,28px);margin:0 0 3px;letter-spacing:-.01em;}
+    .subid{color:var(--muted);font-size:13.5px;margin:0 0 12px;font-variant-numeric:tabular-nums;}
+    .dxline{font-size:14.5px;color:var(--ink);background:var(--surface);border-left:3px solid var(--accent);
+      padding:10px 13px;border-radius:0 7px 7px 0;margin:0;}
+    .dxline b{color:var(--accent-ink);}
+    h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700;
+      margin:28px 0 12px;display:flex;align-items:center;gap:9px;}
+    h2::after{content:"";flex:1;height:1px;background:var(--line);}
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:15px 17px;}
+    .lead{font-size:14px;color:var(--ink2);margin:0 0 13px;}
+    .lead b{color:var(--ink);}
+    /* band tests */
+    .bands{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+    @media(max-width:640px){.bands{grid-template-columns:1fr;}}
+    .band{border:1px solid var(--line);border-radius:9px;padding:12px 13px;background:var(--elevated);}
+    .band.pos{border-color:var(--pos);}
+    .band .r{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:10px;}
+    .band.pos .r{background:var(--pos-bg);color:var(--pos);}
+    .band .r.neg{background:var(--input);color:var(--muted);}
+    .band .d{color:var(--muted);font-size:12px;margin-top:6px;font-variant-numeric:tabular-nums;}
+    .band .t{font-size:13px;color:var(--ink2);margin-top:6px;}
+    .scroll{overflow-x:auto;}
+    table{border-collapse:collapse;width:100%;font-size:13px;}
+    th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+    th{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);}
+    td.n{text-align:right;font-variant-numeric:tabular-nums;}
+    tbody tr:last-child td{border-bottom:none;}
+    .flag-high{color:var(--hi);font-weight:600;} .flag-low{color:var(--lo);font-weight:600;}
+    .medrow{display:flex;gap:9px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+    .medrow:last-child{border-bottom:none;}
+    .medrow .nm{font-weight:600;} .medrow .meta{color:var(--muted);font-size:12.5px;}
+    .pill{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:5px;
+      background:var(--accent-soft);color:var(--accent-ink);}
+    .evt{padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;}
+    .evt:last-child{border-bottom:none;}
+    .evt .d{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;}
+    .evt .p{color:var(--ink2);}
+    .doc{padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink2);}
+    .doc:last-child{border-bottom:none;} .doc .d{color:var(--muted);font-size:12px;}
+    footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px;line-height:1.6;}
+    .empty{color:var(--muted);font-size:13px;}
+  </style>
+</head>
+<body>
+  <div class="banner">Confidential patient record · read-only · shared at the patient's direction</div>
+  <div class="wrap">
+    <header>
+      <p class="prep">Rheumatology view{% if clinician %} · prepared for {{ clinician.name }}{% endif %}</p>
+      <h1>{{ patient.name or "Patient" }}</h1>
+      <p class="subid">{% if patient.dob %}DOB {{ patient.dob }}{% if patient.age %} ({{ patient.age }}){% endif %} · {% endif %}patient-collated clinical record</p>
+      <p class="dxline">The diagnosis here rests on <b>tissue</b>: a positive lesional lupus band test with a quiet, fluctuating serology. The serology below is shown in that supporting context.</p>
+    </header>
+
+    <section>
+      <h2>Diagnostic backbone — the skin</h2>
+      <div class="card">
+        {% if lupus_band %}
+        <p class="lead">Lupus band tests, read together (site explains any difference — non-lesional vs lesional skin):</p>
+        <div class="bands">
+          {% for b in lupus_band %}
+          {% set positive = (b.qualitative_result or '')|lower == 'positive' %}
+          <div class="band {{ 'pos' if positive else '' }}">
+            <span class="r {{ '' if positive else 'neg' }}">{{ b.qualitative_result or '—' }}</span>
+            <div class="d">{{ b.date }}{% if b.lab_facility %} · {{ b.lab_facility }}{% endif %}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% if dif %}
+        <p class="lead" style="margin:14px 0 8px;"><b>Direct immunofluorescence detail:</b></p>
+        <div class="scroll"><table>
+          <thead><tr><th>date</th><th>reactant</th><th>finding</th></tr></thead>
+          <tbody>
+            {% for d in dif %}
+            <tr><td>{{ d.date }}</td><td>{{ d.test_name }}</td>
+                <td style="white-space:normal;color:var(--ink2);">{{ d.qualitative_result or '' }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table></div>
+        {% endif %}
+        {% else %}
+        <p class="empty">No lupus band test on file.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section>
+      <h2>ANA history</h2>
+      <div class="card scroll">
+        {% if ana_history %}
+        <table>
+          <thead><tr><th>date</th><th>screen</th><th>titer</th><th>pattern</th><th>provider</th></tr></thead>
+          <tbody>
+            {% for a in ana_history %}
+            <tr><td>{{ a.date }}</td><td>{{ a.screen_result or '' }}</td>
+                <td>{% if a.titer_integer %}1:{{ a.titer_integer }}{% endif %}</td>
+                <td style="white-space:normal;">{{ a.patterns or '' }}</td>
+                <td>{{ a.provider or '' }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="empty">No ANA results on file.</p>{% endif %}
+      </div>
+    </section>
+
+    <section>
+      <h2>Serology &amp; chemistry (most recent per test)</h2>
+      <div class="card scroll">
+        {% if serology %}
+        <table>
+          <thead><tr><th>test</th><th class="n">value</th><th>reference</th><th>flag</th><th>date</th></tr></thead>
+          <tbody>
+            {% for l in serology %}
+            <tr>
+              <td>{{ l.test_name }}</td>
+              <td class="n">{{ l.numeric_value if l.numeric_value is not none else l.qualitative_result }}{% if l.unit %} {{ l.unit }}{% endif %}</td>
+              <td style="color:var(--muted);">{{ l.reference_range or '' }}</td>
+              <td>{%- if l.flag == 'high' %}<span class="flag-high">high</span>{% elif l.flag == 'low' %}<span class="flag-low">low</span>{% elif l.flag %}{{ l.flag }}{% endif -%}</td>
+              <td style="color:var(--muted);">{{ l.date }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="empty">No serology on file.</p>{% endif %}
+      </div>
+    </section>
+
+    <section>
+      <h2>Current treatment</h2>
+      <div class="card">
+        {% if active_meds %}
+        {% for m in active_meds %}
+        <div class="medrow">
+          <span class="nm">{{ m.drug_name }}</span>
+          {% if m._immuno %}<span class="pill">immuno</span>{% endif %}
+          <span class="meta">{% if m.dose %}{{ m.dose }}{{ m.unit or '' }} {% endif %}{{ m.frequency or '' }}{% if m.indication %} · {{ m.indication }}{% endif %}{% if m.start_date %} · since {{ m.start_date }}{% endif %}</span>
+        </div>
+        {% endfor %}
+        {% else %}<p class="empty">No active medications on file.</p>{% endif %}
+      </div>
+    </section>
+
+    <section>
+      <h2>Recent clinical events</h2>
+      <div class="card">
+        {% if events %}
+        {% for e in events %}
+        <div class="evt">
+          <span class="d">{{ e.date }}</span> · <b>{{ e.event_type }}</b>{% if e.provider %} · {{ e.provider }}{% endif %}
+          {% if e.notes %}<div class="p">{{ e.notes[:160] }}{% if e.notes|length > 160 %}…{% endif %}</div>{% endif %}
+        </div>
+        {% endfor %}
+        {% else %}<p class="empty">No clinical events on file.</p>{% endif %}
+      </div>
+    </section>
+
+    {% if documents %}
+    <section>
+      <h2>Source documents on file</h2>
+      <div class="card">
+        {% for d in documents %}
+        <div class="doc"><span class="d">{{ d.date or '—' }}</span> · {{ d.title }}</div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <footer>
+      Read-only, patient-collated record. This link expires {{ (link.expires_at or '')[:10] }} and can be turned
+      off by the patient at any time. Values are drawn from the patient's own labs, pathology reports, and clinical
+      log across multiple facilities; clinical interpretation rests with the treating physician. Confidential — please do not forward.
+    </footer>
+  </div>
+</body>
+</html>

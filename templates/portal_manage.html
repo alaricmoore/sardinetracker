@@ -3,12 +3,12 @@
 {% block head %}
 <style>
   .pl-wrap { max-width: 900px; margin: 0 auto; }
-  .pl-card { background: var(--surface, #fff); border: 1px solid var(--border, #e0e5e3);
+  .pl-card { background: var(--bg-surface); border: 1px solid var(--border-subtle);
     border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
   .pl-card h2 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase;
     color: var(--text-muted); margin: 0 0 12px; }
   .pl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; }
-  .pl-link { border: 1px solid var(--border, #e0e5e3); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .pl-link { border: 1px solid var(--border-subtle); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
   .pl-link .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
   .pl-link .who { font-weight: 600; }
   .pl-link .meta { color: var(--text-muted); font-size: 12.5px; margin-top: 2px; }
@@ -20,9 +20,9 @@
     .s-expired{background:#332816;color:#d59a3c;} .s-revoked{background:#1c2422;color:#8a9794;} }
   .urlrow { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
   .urlrow input { flex: 1; font-family: ui-monospace, monospace; font-size: 12px; padding: 6px 8px;
-    border: 1px solid var(--border, #ccd4d1); border-radius: 6px; background: var(--surface-2, #f4f6f5); color: var(--text); }
+    border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-input); color: var(--text-primary); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border, #e0e5e3); white-space: nowrap; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
   th { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
 </style>
 {% endblock %}

@@ -3849,6 +3849,80 @@ def _portal_security_headers(resp):
     return resp
 
 
+BUILT_PORTAL_VIEWS = {"rheumatology"}   # others fall back to the shell for now
+
+
+def _portal_identity(prefs: dict) -> dict:
+    dob = prefs.get("patient_dob")
+    age = None
+    if dob:
+        try:
+            b = datetime.strptime(dob, "%Y-%m-%d").date()
+            t = date.today()
+            age = t.year - b.year - ((t.month, t.day) < (b.month, b.day))
+        except ValueError:
+            pass
+    return {"name": prefs.get("patient_name"), "dob": dob, "age": age}
+
+
+def _latest_labs_matching(owner_id: int, keywords) -> list:
+    """Most-recent lab per distinct test name whose name contains a keyword."""
+    latest = {}
+    for l in db.get_lab_results(owner_id):
+        tl = (l.get("test_name") or "").lower()
+        if not any(k in tl for k in keywords):
+            continue
+        cur = latest.get(tl)
+        if cur is None or (l.get("date") or "") > (cur.get("date") or ""):
+            latest[tl] = l
+    return sorted(latest.values(), key=lambda x: (x.get("test_name") or "").lower())
+
+
+_IMMUNOSUPPRESSANTS = ("hydroxychloroquine", "plaquenil", "mycophenolate",
+                       "cellcept", "methotrexate", "azathioprine", "rituximab",
+                       "belimumab", "prednisone", "methylprednisolone")
+
+_RHEUM_SEROLOGY = ("dsdna", "anti-dna", "c3", "c4", "ch50", "complement",
+                   "esr", "sed rate", "crp", "c-reactive", "rheumatoid", " rf",
+                   "ccp", "ena", "smith", "rnp", "ro60", "ss-a", "ss-b", "anti-la",
+                   "iga", "igg", "igm", "aldolase", "beta-2", "creatine kinase",
+                   "anticardiolipin", "lupus anticoag", "lupus reflex",
+                   "jo-1", "mi-2", "mda-5", "tif-1", "nxp-2")
+
+
+def _portal_rheum_data(owner_id: int) -> dict:
+    labs = db.get_lab_results(owner_id)
+    band = sorted(
+        [l for l in labs if "lupus band" in (l.get("test_name") or "").lower()],
+        key=lambda x: x.get("date") or "")
+    dif = sorted(
+        [l for l in labs if (l.get("test_name") or "").lower().startswith("dif ")],
+        key=lambda x: x.get("date") or "")
+    today = date.today().isoformat()
+    meds = db.get_all_medications(owner_id)
+    active = [m for m in meds if (m.get("start_date") or "") <= today
+              and (not m.get("end_date") or m["end_date"] >= today)]
+    for m in active:
+        m["_immuno"] = any(k in (m.get("drug_name") or "").lower()
+                           for k in _IMMUNOSUPPRESSANTS)
+    events = sorted(db.get_clinical_events(owner_id),
+                    key=lambda x: x.get("date") or "", reverse=True)[:12]
+    docs = [d for d in db.get_clinical_documents(owner_id)
+            if (d.get("doc_type") in ("pathology", "clinic note"))
+            or (d.get("specialty") or "").lower() in ("rheumatology", "dermatopathology")]
+    return {
+        "lupus_band": band,
+        "dif": dif,
+        "serology": _latest_labs_matching(owner_id, _RHEUM_SEROLOGY),
+        "ana_history": sorted(db.get_ana_results(owner_id),
+                              key=lambda x: x.get("date") or ""),
+        "active_meds": sorted(active, key=lambda m: (not m["_immuno"],
+                                                     m.get("drug_name") or "")),
+        "events": events,
+        "documents": docs[:20],
+    }
+
+
 @app.route("/portal/<token>")
 def portal_view(token):
     """The clinician-facing read-only view. No login: the token is the key."""
@@ -3861,13 +3935,15 @@ def portal_view(token):
     if link.get("clinician_id"):
         clinician = next((c for c in db.get_all_clinicians(owner_id)
                           if c["id"] == link["clinician_id"]), None)
-    return render_template(
-        "portal_view.html",
-        link=link,
-        view=link["view"],
-        view_label=PORTAL_VIEWS.get(link["view"], link["view"]),
-        clinician=clinician,
-    )
+    view = link["view"]
+    ctx = dict(link=link, view=view,
+               view_label=PORTAL_VIEWS.get(view, view),
+               clinician=clinician,
+               patient=_portal_identity(db.get_user_preferences(owner_id) or {}))
+    if view == "rheumatology":
+        ctx.update(_portal_rheum_data(owner_id))
+        return render_template("portal_rheumatology.html", **ctx)
+    return render_template("portal_view.html", **ctx)
 
 
 @app.route("/portals")
