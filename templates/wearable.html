@@ -274,6 +274,26 @@ const peakUv = Math.max(0.5, ...rawSeries.uvIndex.filter(v => v != null));
 const eventPoints = events.map(e => ({ x: e.ts, y: peakUv, label: e.event_label }));
 
 // ============================================================
+// Date-aware x-axis ticks. Chart.js picks the tick unit from the zoom
+// level, and beyond ~24h it lands on 'hour' — which would render bare
+// clock times ("06:00") across a week with no way to tell the days
+// apart. Instead: show the date on the first tick and whenever a tick
+// crosses into a new day, time-of-day otherwise; ticks that land exactly
+// on midnight (day/week units) show just the date.
+// ============================================================
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dateAwareTick(value, index, ticks) {
+    const d = new Date(value);
+    const monthDay = `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
+    if (d.getHours() === 0 && d.getMinutes() === 0) return monthDay;
+    const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const prev = index > 0 ? new Date(ticks[index - 1].value) : null;
+    const newDay = !prev || prev.getDate() !== d.getDate() ||
+                   prev.getMonth() !== d.getMonth() || prev.getFullYear() !== d.getFullYear();
+    return newDay ? `${monthDay}, ${hm}` : hm;
+}
+
+// ============================================================
 // Charts — built once, then updated in-place when smoothing changes.
 // ============================================================
 const SMOOTH_KEY = 'wearable.smooth';
@@ -374,16 +394,10 @@ const uvChart = new Chart(document.getElementById('chartUv'), {
         scales: {
             x: {
                 type: 'time',
-                time: {
-                    tooltipFormat: 'MMM d, HH:mm',
-                    displayFormats: {
-                        minute: 'HH:mm',
-                        hour:   'HH:mm',
-                        day:    'MMM d',
-                    },
-                },
+                time: { tooltipFormat: 'MMM d, HH:mm' },
                 grid: { color: 'rgba(255,255,255,0.06)' },
-                ticks: { color: '#9994a8', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+                ticks: { color: '#9994a8', maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
+                         callback: dateAwareTick },
             },
             y: {
                 position: 'left',
@@ -433,16 +447,10 @@ const battChart = new Chart(document.getElementById('chartBatt'), {
         scales: {
             x: {
                 type: 'time',
-                time: {
-                    tooltipFormat: 'MMM d, HH:mm',
-                    displayFormats: {
-                        minute: 'HH:mm',
-                        hour:   'HH:mm',
-                        day:    'MMM d',
-                    },
-                },
+                time: { tooltipFormat: 'MMM d, HH:mm' },
                 grid: { color: 'rgba(255,255,255,0.06)' },
-                ticks: { color: '#9994a8', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+                ticks: { color: '#9994a8', maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
+                         callback: dateAwareTick },
             },
             y: {
                 grid: { color: 'rgba(255,255,255,0.06)' },
