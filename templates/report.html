@@ -8,7 +8,19 @@
 @media print {
     nav, .no-print { display: none !important; }
     .page-break { page-break-before: always; }
-    body { background: white; color: black; }
+    /* Repaint the dark theme as ink-on-paper so text isn't invisible on white */
+    :root {
+        --bg-base: #ffffff; --bg-surface: #ffffff; --bg-elevated: #ffffff; --bg-input: #ffffff;
+        --border-subtle: #cccccc; --border-medium: #999999;
+        --text-primary: #000000; --text-secondary: #1f1f1f; --text-muted: #555555;
+        --color-flare: #c0392b; --color-accent: #333333;
+    }
+    html, body { background: #ffffff !important; color: #000000 !important;
+                 -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .finding-card { background: #ffffff !important; }
+    /* keep small units from splitting across page breaks */
+    tr, li, canvas { break-inside: avoid; }
+    a { color: #000 !important; text-decoration: none; }
     .print-header { display: block !important; margin-bottom: 1.5rem;
                     padding-bottom: 0.75rem; border-bottom: 2px solid #000; }
 }
@@ -81,6 +93,55 @@
 {% else %}
 
 <!-- ============================================================
+     SYNOPSIS — page-1 headline (clinicians scan this first)
+     ============================================================ -->
+<div class="report-section" style="border-bottom:2px solid var(--border-medium);">
+    <div style="display:flex; flex-wrap:wrap; gap:var(--space-xl); align-items:flex-start;">
+        <div style="flex:1; min-width:120px;">
+            <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted);">Flare burden</div>
+            <div style="font-size:1.7rem; font-weight:700; color:#e85d5d;">{{ synopsis.flares_per_month }}<span style="font-size:0.9rem; font-weight:400; color:var(--text-muted);">/mo</span></div>
+            <div style="font-size:0.8rem; color:var(--text-muted);">{{ synopsis.flare_count }} in {{ synopsis.period_days }} days</div>
+        </div>
+        <div style="flex:1; min-width:140px;">
+            <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted);">Disease-modifying Rx</div>
+            <div style="font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-top:0.2rem;">
+                {% if synopsis.dmards %}{{ synopsis.dmards | join(' + ') }}{% else %}—{% endif %}
+            </div>
+        </div>
+        <div style="flex:1.5; min-width:180px;">
+            <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted);">Serology</div>
+            <div style="font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-top:0.2rem;">
+                {% if synopsis.serology %}{{ synopsis.serology | join(' · ') }}{% else %}—{% endif %}
+            </div>
+        </div>
+        {% if synopsis.mean_pain is not none or synopsis.mean_fatigue is not none %}
+        <div style="flex:1; min-width:120px;">
+            <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted);">Mean burden</div>
+            <div style="font-size:1.05rem; font-weight:600; color:var(--text-primary); margin-top:0.2rem;">
+                {% if synopsis.mean_pain is not none %}pain {{ synopsis.mean_pain }}{% endif %}{% if synopsis.mean_fatigue is not none %} · fatigue {{ synopsis.mean_fatigue }}{% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ============================================================
+     DISEASE-BURDEN CHART — hero visual
+     ============================================================ -->
+{% if burden_json and burden_json != '[]' %}
+<div class="report-section">
+    <h2 style="margin:0 0 var(--space-xs) 0; font-size:1.3rem; color:var(--text-primary);">
+        Disease Burden Over Time
+    </h2>
+    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm); line-height:1.6;">
+        Daily flare-risk score, stacked by what's driving it. Vertical marks are recorded flares;
+        the dashed line is the flare threshold.
+    </p>
+    <canvas id="chartBurden" style="max-height:340px;"></canvas>
+</div>
+{% endif %}
+
+<!-- ============================================================
      PATIENT SUMMARY
      ============================================================ -->
 <div class="report-section">
@@ -122,14 +183,14 @@
         </div>
     </div>
     
-    <!-- Active medications -->
+    <!-- Disease-modifying therapy (full list in appendix) -->
     <div style="margin-top:var(--space-md);">
         <h3 style="font-size:1rem; color:var(--text-secondary); margin:0 0 var(--space-xs) 0;">
-            Current Medications
+            Disease-Modifying Therapy
         </h3>
-        {% if active_meds %}
+        {% if dmard_meds %}
         <ul style="margin:0; padding-left:var(--space-lg); color:var(--text-secondary);">
-            {% for med in active_meds %}
+            {% for med in dmard_meds %}
             <li style="margin-bottom:4px;">
                 <strong style="color:var(--text-primary);">{{ med.drug_name }}</strong>
                 {% if med.dose %}{{ med.dose }}{% endif %}
@@ -144,13 +205,13 @@
             </li>
             {% endfor %}
         </ul>
-        {% if hcq_start %}
-        <div style="margin-top:var(--space-xs); color:var(--text-muted); font-size:0.9rem;">
-            Note: Hydroxychloroquine started {{ hcq_start }}.
-        </div>
-        {% endif %}
         {% else %}
-        <p style="color:var(--text-muted); margin:0;">No medications recorded.</p>
+        <p style="color:var(--text-muted); margin:0;">None currently recorded.</p>
+        {% endif %}
+        {% if active_meds %}
+        <div style="margin-top:var(--space-xs); color:var(--text-muted); font-size:0.85rem;">
+            Full current medication list ({{ active_meds|length }}) in appendix.
+        </div>
         {% endif %}
     </div>
     
@@ -213,29 +274,17 @@
 {% endif %}
 
 <!-- ============================================================
-     KEY FINDINGS
+     KEY DIAGNOSTIC MARKERS
      ============================================================ -->
-{% if findings %}
+{% if key_labs %}
 <div class="report-section">
     <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
-        Key Findings
+        Key Diagnostic Markers
     </h2>
-    {% for finding in findings %}
-    <div class="finding-card">
-        {{ finding.text }}
-    </div>
-    {% endfor %}
-</div>
-{% endif %}
-
-<!-- ============================================================
-     FLAGGED LAB ABNORMALS
-     ============================================================ -->
-{% if flagged_labs %}
-<div class="report-section">
-    <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
-        Flagged Laboratory Results
-    </h2>
+    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm); line-height:1.6;">
+        Most recent result for each clinically relevant marker — all-time, not limited to
+        the report window. Out-of-range values are flagged.
+    </p>
     <div style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
             <thead>
@@ -258,7 +307,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for lab in flagged_labs | sort(attribute='date', reverse=True) %}
+                {% for lab in key_labs %}
                 <tr style="border-bottom:1px solid var(--border-subtle);">
                     <td style="padding:var(--space-xs); font-family:var(--font-mono);
                                font-size:0.85rem; color:var(--text-muted);">
@@ -279,13 +328,16 @@
                         {{ lab.reference_range or '—' }}
                     </td>
                     <td style="padding:var(--space-xs);">
+                        {% if lab.flag in ('high', 'low', 'critical', 'abnormal') %}
                         <span class="badge
-                            {% if lab.flag == 'high' %}badge-migraine
+                            {% if lab.flag in ('high', 'critical') %}badge-migraine
                             {% elif lab.flag == 'low' %}badge-air
-                            {% elif lab.flag == 'critical' %}badge-migraine
                             {% else %}badge-muscle{% endif %}">
                             {{ lab.flag }}
                         </span>
+                        {% else %}
+                        <span style="color:var(--text-muted); font-size:0.85rem;">normal</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -380,135 +432,189 @@
 {% endif %}
 
 <!-- ============================================================
-     UV LAG CORRELATION ANALYSIS
+     APPENDIX — FULL MEDICATION LIST
      ============================================================ -->
-{% if correlations_json %}
+{% if active_meds %}
 <div class="report-section page-break">
     <h2 style="margin:0 0 var(--space-md) 0; font-size:1.3rem; color:var(--text-primary);">
-        UV Dose Impact Analysis
+        Appendix — Full Medication List
     </h2>
-    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm); line-height:1.7;">
-        Correlation between UV dose (index × sun exposure minutes) and symptom categories.
-        Bars marked with <strong style="color:var(--color-flare);">*</strong> are statistically significant
-        (p &lt; 0.0005, |r| ≥ 0.35). Higher correlations indicate stronger relationships between UV exposure
-        and symptoms at that time lag.
-    </div>
-    <canvas id="lagChart" style="max-height:380px;"></canvas>
+    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:var(--space-sm);">
+        All {{ active_meds|length }} currently active medications, including supplements and symptomatic treatments.
+    </p>
+    <ul style="margin:0; padding-left:var(--space-lg); color:var(--text-secondary); column-count:2; column-gap:var(--space-xl);">
+        {% for med in active_meds %}
+        <li style="margin-bottom:4px; break-inside:avoid;">
+            <strong style="color:var(--text-primary);">{{ med.drug_name }}</strong>
+            {% if med.dose %}{{ med.dose }}{% endif %}
+            {% if med.unit %}{{ med.unit }}{% endif %}
+            {% if med.frequency %}{{ med.frequency }}{% endif %}
+            {% if med.indication %}
+            <span style="color:var(--text-muted);">— {{ med.indication }}</span>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
 </div>
-
-
-<!--UV lag correlation chart -->
-<script>
-const correlations = {{ correlations_json | safe }};
-
-if (Object.keys(correlations).length > 0) {
-    const LAG_COLORS = {
-        lag_0: '#b8aee8',
-        lag_1: '#9b8dd4',
-        lag_2: '#7c6fd4',
-        lag_3: '#5c4fb8',
-    };
-
-    const LAG_LABELS = {
-        lag_0: 'same day',
-        lag_1: '24h lag',
-        lag_2: '48h lag',
-        lag_3: '72h lag',
-    };
-
-    const SYMPTOM_LABELS = {
-        pain: 'pain',
-        fatigue: 'fatigue',
-        neurological: 'neurological',
-        musculature: 'musculature',
-        migraine: 'migraine',
-        cognitive: 'cognitive',
-        dermatological: 'dermatological',
-        air_hunger: 'air hunger',
-        rheumatic: 'rheumatic', 
-        word_loss: 'word loss',
-        flare: 'flare'
-    };
-
-    const symptoms = Object.keys(correlations);
-    const lags = ['lag_0', 'lag_1', 'lag_2', 'lag_3'];
-
-    const datasets = lags.map(lag => ({
-        label: LAG_LABELS[lag],
-        data: symptoms.map(sym => {
-            const d = correlations[sym]?.[lag];
-            return d ? d.r : 0;
-        }),
-        backgroundColor: LAG_COLORS[lag],
-        borderColor: LAG_COLORS[lag],
-        borderWidth: 1,
-        borderRadius: 3,
-    }));
-
-    const labels = symptoms.map(s => SYMPTOM_LABELS[s] || s);
-
-    new Chart(document.getElementById('lagChart'), {
-        type: 'bar',
-        data: { labels, datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: {
-                    labels: { color: '#9994a8', boxWidth: 12, padding: 12, font: { size: 11 } }
-                },
-                tooltip: {
-                    backgroundColor: '#1e1e28',
-                    borderColor: '#2a2a38',
-                    borderWidth: 1,
-                    titleColor: '#e8e6e0',
-                    bodyColor: '#9994a8',
-                    padding: 8,
-                    cornerRadius: 6,
-                    callbacks: {
-                        label: ctx => {
-                            const sym = symptoms[ctx.dataIndex];
-                            const lag = lags[ctx.datasetIndex];
-                            const d = correlations[sym]?.[lag];
-                            if (!d) return `${ctx.dataset.label}: no data`;
-                            const sig = d.significant ? ' *' : '';
-                            return `${ctx.dataset.label}: r=${d.r}${sig}  (n=${d.n}, p=${d.p})`;
-                        }
-                    }
-                },
-            },
-            scales: {
-                x: {
-                    grid: { color: 'rgba(255,255,255,0.04)', display: false },
-                    ticks: { color: '#9994a8', font: { size: 10 } },
-                },
-                y: {
-                    min: -0.1,
-                    max: 0.7,
-                    grid: { color: 'rgba(255,255,255,0.06)' },
-                    title: {
-                        display: true,
-                        text: 'Correlation (r)',
-                        color: '#9994a8',
-                        font: { size: 11 }
-                    },
-                    ticks: {
-                        color: '#9994a8',
-                        font: { size: 10 },
-                        callback: v => v.toFixed(1),
-                    }
-                }
-            }
-        }
-    });
-}
-</script>
 {% endif %}
+
 
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
+{% if burden_json and burden_json != '[]' %}
+<script>
+(function() {
+    const D = {{ burden_json | safe }};
+    if (!D.length) return;
+    const THRESHOLD = {{ burden_threshold }};
+    const dates = D.map(d => d.date);
+    const GRID = 'rgba(255,255,255,0.06)';
+    const FONT = "'Source Serif 4', 'Times New Roman', serif";
+    Chart.defaults.font.family = FONT;
+    let printing = false;  // flipped on print/PDF so the chart is ink-on-white
+
+    // Flare marker plugin (ported from /model)
+    const flarePlugin = {
+        id: 'flareMarkers',
+        afterDraw(chart) {
+            const { ctx, chartArea, scales } = chart;
+            if (!chartArea || !scales.x) return;
+            const COLORS = { er_visit: '#ff4444', major: '#ff8c00', minor: '#ffcc00' };
+            D.forEach((d, i) => {
+                if (!d.flare) return;
+                const x = scales.x.getPixelForValue(i);
+                if (x < chartArea.left || x > chartArea.right) return;
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top);
+                ctx.lineTo(x, chartArea.bottom);
+                ctx.strokeStyle = COLORS[d.severity] || '#ffcc00';
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.6;
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+    };
+
+    // Threshold line plugin (ported from /model)
+    const thresholdPlugin = {
+        id: 'thresholdLine',
+        afterDraw(chart) {
+            const { ctx, chartArea, scales } = chart;
+            if (!chartArea || !scales.y) return;
+            const y = scales.y.getPixelForValue(THRESHOLD);
+            if (y < chartArea.top || y > chartArea.bottom) return;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(chartArea.left, y);
+            ctx.lineTo(chartArea.right, y);
+            ctx.strokeStyle = printing ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 4]);
+            ctx.stroke();
+            ctx.fillStyle = printing ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.5)';
+            ctx.font = '10px ' + FONT;
+            ctx.textAlign = 'right';
+            ctx.fillText('threshold ' + THRESHOLD, chartArea.right - 4, y - 4);
+            ctx.restore();
+        }
+    };
+
+    const COMPONENTS = [
+        { key: 'uv',           label: 'UV',           color: '#d4b84a' },
+        { key: 'exertion',     label: 'exertion',     color: '#d4a054' },
+        { key: 'temperature',  label: 'temperature',  color: '#c94040' },
+        { key: 'symptoms',     label: 'symptoms',     color: '#9b72cf' },
+        { key: 'pain_fatigue', label: 'pain/fatigue', color: '#e85d9e' },
+        { key: 'burden_delta', label: 'burden delta', color: '#5b9bd5' },
+        { key: 'rmssd',        label: 'RMSSD',        color: '#66bb6a' },
+        { key: 'resp_rate',    label: 'resp rate',    color: '#e0a050' },
+    ];
+
+    const stackedDatasets = COMPONENTS.map(c => ({
+        label: c.label,
+        data: D.map(d => d[c.key]),
+        backgroundColor: c.color,
+        borderWidth: 0,
+        borderSkipped: false,
+    }));
+
+    const burdenChart = new Chart(document.getElementById('chartBurden'), {
+        type: 'bar',
+        plugins: [flarePlugin, thresholdPlugin],
+        data: { labels: dates, datasets: stackedDatasets },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: {
+                    stacked: true,
+                    grid: { color: GRID },
+                    ticks: {
+                        color: '#9994a8',
+                        maxTicksLimit: 15,
+                        callback: function(val, idx) {
+                            const d = dates[idx];
+                            return d ? d.slice(5) : '';
+                        }
+                    }
+                },
+                y: {
+                    stacked: true,
+                    grid: { color: GRID },
+                    ticks: { color: '#9994a8' },
+                    title: { display: true, text: 'score', color: '#9994a8' }
+                }
+            },
+            plugins: {
+                legend: { display: true, labels: { color: '#9994a8', boxWidth: 12, padding: 8, font: { size: 10 } } },
+                tooltip: {
+                    backgroundColor: '#1e1e28',
+                    borderColor: '#2a2a38',
+                    borderWidth: 1,
+                    padding: 10,
+                    cornerRadius: 6,
+                    callbacks: {
+                        title: function(items) {
+                            const idx = items[0].dataIndex;
+                            const d = D[idx];
+                            let t = d.date;
+                            if (d.flare) t += ' — ' + (d.severity === 'er_visit' ? 'ER visit' : (d.severity || '') + ' flare');
+                            return t;
+                        },
+                        afterBody: function(items) {
+                            const idx = items[0].dataIndex;
+                            return ['total: ' + D[idx].total];
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Recolor the chart to ink-on-white when printing / saving to PDF, restore after.
+    function setPrintTheme(on) {
+        printing = on;
+        const ink = on ? '#222222' : '#9994a8';
+        const grid = on ? 'rgba(0,0,0,0.12)' : GRID;
+        const s = burdenChart.options.scales;
+        s.x.ticks.color = ink; s.y.ticks.color = ink;
+        s.x.grid.color = grid; s.y.grid.color = grid;
+        s.y.title.color = ink;
+        burdenChart.options.plugins.legend.labels.color = ink;
+        burdenChart.update('none');
+    }
+    if (window.matchMedia) {
+        const mq = window.matchMedia('print');
+        if (mq.addEventListener) mq.addEventListener('change', e => setPrintTheme(e.matches));
+    }
+    window.addEventListener('beforeprint', () => setPrintTheme(true));
+    window.addEventListener('afterprint', () => setPrintTheme(false));
+})();
+</script>
+{% endif %}
 {% endblock %}
 

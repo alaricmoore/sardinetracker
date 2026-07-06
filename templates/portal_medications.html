@@ -1,0 +1,29 @@
+{% extends "portal_base.html" %}
+
+{% block portal_content %}
+  <section class="report-section">
+    <h2>Current medications</h2>
+    <p class="section-note">Everything active today, disease-modifying therapy first.</p>
+    {% if active_meds %}
+    {% for m in active_meds %}
+    <div class="medrow">
+      <span class="nm">{{ m.drug_name }}</span>
+      {% if m._immuno %}<span class="badge badge-accent">immuno</span>{% endif %}
+      <span class="meta">{% if m.dose %}{{ m.dose }}{{ m.unit or '' }} {% endif %}{{ m.frequency or '' }}{% if m.indication %} · {{ m.indication }}{% endif %}{% if m.start_date %} · since {{ m.start_date }}{% endif %}</span>
+    </div>
+    {% endfor %}
+    {% else %}<p class="empty-state">No active medications on file.</p>{% endif %}
+  </section>
+
+  {% if inactive_meds %}
+  <section class="report-section">
+    <h2>Past medications</h2>
+    {% for m in inactive_meds %}
+    <div class="medrow">
+      <span class="nm">{{ m.drug_name }}</span>
+      <span class="meta">{% if m.dose %}{{ m.dose }}{{ m.unit or '' }} {% endif %}{% if m.indication %}{{ m.indication }} · {% endif %}{{ m.start_date or '' }} – {{ m.end_date or '' }}</span>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+{% endblock %}

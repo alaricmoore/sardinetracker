@@ -1,0 +1,21 @@
+{% extends "portal_base.html" %}
+
+{% block portal_content %}
+  <section class="report-section">
+    <h2>Clinical timeline</h2>
+    <p class="section-note">Encounters, procedures, and events across facilities, newest first.</p>
+    {% if events %}
+    {% for e in events %}
+    <div class="evt">
+      <div class="head">
+        <span class="d">{{ e.date }}</span>
+        <span class="badge badge-accent">{{ e.event_type }}</span>
+        {% if e.provider %}<span class="who">{{ e.provider }}</span>{% endif %}
+        {% if e.facility %}<span class="where">— {{ e.facility }}</span>{% endif %}
+      </div>
+      {% if e.notes %}<p>{{ e.notes }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    {% else %}<p class="empty-state">No clinical events on file.</p>{% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "portal_base.html" %}
+
+{% block portal_content %}
+  <section class="report-section">
+    <h2>Key diagnostic markers</h2>
+    <p class="section-note">Curated to what argues the case — every marker abnormal or positive
+       at least once, most recent draw (and the most abnormal, if a different draw).</p>
+    {% if key_labs %}
+    <div class="scroll"><table class="data-table">
+      <thead><tr><th>date</th><th>test</th><th>result</th><th>reference</th><th>flag</th></tr></thead>
+      <tbody>
+        {% for l in key_labs %}
+        <tr>
+          <td class="mono" style="color:var(--text-muted);">{{ l.date }}</td>
+          <td style="color:var(--text-primary);">{{ l.test_name }}</td>
+          <td class="num">{{ l.numeric_value if l.numeric_value is not none else l.qualitative_result }}{% if l.unit %} {{ l.unit }}{% endif %}</td>
+          <td style="color:var(--text-muted);">{{ l.reference_range or '—' }}</td>
+          <td>{%- if l.flag in ('high','abnormal','critical') %}<span class="badge badge-high">{{ l.flag }}</span>{% elif l.flag == 'low' %}<span class="badge badge-low">low</span>{% elif l.flag %}{{ l.flag }}{% endif -%}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="empty-state">No key markers on file.</p>{% endif %}
+  </section>
+
+  <section class="report-section">
+    <h2>ANA history</h2>
+    <p class="section-note">ANA may fluctuate to negative during quiescent disease periods;
+       prior positive results remain clinically significant.</p>
+    {% if ana_history %}
+    <div class="scroll"><table class="data-table">
+      <thead><tr><th>date</th><th>screen</th><th>titer</th><th>pattern(s)</th><th>provider</th></tr></thead>
+      <tbody>
+        {% for a in ana_history %}
+        <tr>
+          <td class="mono" style="color:var(--text-muted);">{{ a.date }}</td>
+          <td style="color:var(--text-primary);">{{ a.screen_result or '—' }}</td>
+          <td class="num">{% if a.titer_integer %}1:{{ a.titer_integer }}{% else %}—{% endif %}</td>
+          <td>{{ a.patterns or '—' }}</td>
+          <td style="color:var(--text-muted);">{{ a.provider or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="empty-state">No ANA results on file.</p>{% endif %}
+  </section>
+
+  <section class="report-section">
+    <h2>All lab results <span style="font-family:var(--font-mono); font-weight:400; color:var(--text-muted); font-size:0.8rem;">{{ all_labs|length }} results, newest first</span></h2>
+    {% if all_labs %}
+    <div class="scroll"><table class="data-table">
+      <thead><tr><th>date</th><th>test</th><th>result</th><th>reference</th><th>flag</th><th>source</th></tr></thead>
+      <tbody>
+        {% for l in all_labs %}
+        <tr>
+          <td class="mono" style="color:var(--text-muted);">{{ l.date }}</td>
+          <td style="color:var(--text-primary);">{{ l.test_name }}</td>
+          <td class="num">{{ l.numeric_value if l.numeric_value is not none else l.qualitative_result }}{% if l.unit %} {{ l.unit }}{% endif %}</td>
+          <td style="color:var(--text-muted);">{{ l.reference_range or '' }}</td>
+          <td>{%- if l.flag in ('high','abnormal','critical') %}<span class="badge badge-high">{{ l.flag }}</span>{% elif l.flag == 'low' %}<span class="badge badge-low">low</span>{% elif l.flag %}{{ l.flag }}{% endif -%}</td>
+          <td style="color:var(--text-muted);">{{ l.lab_facility or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="empty-state">No labs on file.</p>{% endif %}
+  </section>
+{% endblock %}

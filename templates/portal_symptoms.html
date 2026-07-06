@@ -1,0 +1,51 @@
+{% extends "portal_base.html" %}
+
+{% block portal_content %}
+  <section class="report-section">
+    <h2>Snapshot <span style="font-family:var(--font-mono); font-weight:400; color:var(--text-muted); font-size:0.8rem;">last 90 days · {{ period.start }} to {{ period.end }}</span></h2>
+    <div class="stats">
+      <div class="stat"><div class="k">Days logged</div><div class="v">{{ period.obs_days }}</div></div>
+      <div class="stat"><div class="k">Flare days</div><div class="v" style="color:var(--color-danger);">{{ period.flare_days }}</div></div>
+      <div class="stat"><div class="k">Mean pain</div><div class="v">{{ period.mean_pain if period.mean_pain is not none else '—' }}</div></div>
+      <div class="stat"><div class="k">Mean fatigue</div><div class="v">{{ period.mean_fatigue if period.mean_fatigue is not none else '—' }}</div></div>
+    </div>
+  </section>
+
+  <section class="report-section">
+    <h2>Symptom frequency</h2>
+    <p class="section-note">Days each category was flagged out of {{ period.obs_days }} tracked days in this period.</p>
+    {% if symptom_freq %}
+    <div class="scroll"><table class="data-table">
+      <thead><tr><th>symptom</th><th style="text-align:right;">days</th><th style="text-align:right;">% of period</th></tr></thead>
+      <tbody>
+        {% for sym in symptom_freq %}
+        <tr>
+          <td style="color:var(--text-primary);">{{ sym.name }}</td>
+          <td class="num" style="text-align:right;">{{ sym.count }}</td>
+          <td class="num" style="text-align:right; color:{% if sym.percent >= 30 %}var(--color-accent){% else %}var(--text-muted){% endif %};">{{ sym.percent }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="empty-state">No symptoms flagged in this period.</p>{% endif %}
+  </section>
+
+  <section class="report-section">
+    <h2>Flares in this period</h2>
+    {% if flares %}
+    <div class="scroll"><table class="data-table">
+      <thead><tr><th>date</th><th>severity</th><th style="text-align:right;">pain</th><th style="text-align:right;">fatigue</th></tr></thead>
+      <tbody>
+        {% for f in flares %}
+        <tr>
+          <td class="mono" style="color:var(--text-muted);">{{ f.date }}</td>
+          <td>{% if f.severity %}<span class="badge {% if f.severity in ('major','er_visit') %}badge-high{% else %}badge-low{% endif %}">{{ 'ER visit' if f.severity == 'er_visit' else f.severity }}</span>{% else %}—{% endif %}</td>
+          <td class="num" style="text-align:right;">{{ f.pain if f.pain is not none else '—' }}</td>
+          <td class="num" style="text-align:right;">{{ f.fatigue if f.fatigue is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="empty-state">No flares recorded in this period.</p>{% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "portal_base.html" %}
+
+{% block portal_content %}
+  <section class="report-section">
+    <h2>Documents on file</h2>
+    <p class="section-note">Clinic notes, pathology, imaging. Click any document to open the original PDF.</p>
+    {% if documents %}
+    <div class="doclist">
+      {% for d in documents %}
+      <a class="doc" href="{{ url_for('portal_document', token=link.token, doc_id=d.id) }}" target="_blank" rel="noopener">
+        <span class="dt">{{ d.date or '—' }}</span>
+        <span class="ti">{{ d.title }}</span>
+        <span class="ty">{{ d.doc_type or '' }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}<p class="empty-state">No documents on file.</p>{% endif %}
+  </section>
+{% endblock %}

@@ -899,7 +899,7 @@ def favicon_files(filename):
 @app.before_request
 def require_login():
     """Redirect unauthenticated users to login page."""
-    if request.endpoint in ('login', 'register', 'static', 'favicon_files', 'api_health_sync', 'api_flare_status', 'api_uv_ingest', 'portal_view', 'portal_document'):
+    if request.endpoint in ('login', 'register', 'static', 'favicon_files', 'api_health_sync', 'api_flare_status', 'api_uv_ingest', 'portal_view', 'portal_section', 'portal_document'):
         return
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
@@ -1593,14 +1593,20 @@ def daily_confirm(entry_date):
 # Timeline
 # ============================================================
 
-def _score_components(obs: dict) -> dict:
+def _score_components(obs: dict, user_id: int | None = None) -> dict:
     """Compute per-category score contributions for a single observation.
 
     Returns a dict with named component scores that sum to the total flare
     prime score. This is the single source of truth for score attribution —
     uses the same logic as calculate_flare_prime_score().
+
+    user_id: whose weights/preferences to score with. Defaults to the
+    logged-in user; the clinician portal passes the link owner explicitly
+    since portal requests carry no session.
     """
-    weights = get_current_weights(current_user.id if current_user.is_authenticated else None)
+    if user_id is None and current_user.is_authenticated:
+        user_id = current_user.id
+    weights = get_current_weights(user_id)
     uv_w = weights.get('uv_weight', 1.0)
     exertion_w = weights.get('exertion_weight', 1.0)
     temp_w = weights.get('temperature_weight', 1.0)
@@ -1632,8 +1638,7 @@ def _score_components(obs: dict) -> dict:
     steps_baseline = obs.get('_steps_baseline')
     if steps_baseline is None:
         try:
-            _uid = current_user.id if current_user.is_authenticated else None
-            _p = db.get_user_preferences(_uid) if _uid else {}
+            _p = db.get_user_preferences(user_id) if user_id else {}
             steps_baseline = _p.get('steps_baseline') if _p else None
         except Exception:
             steps_baseline = None
@@ -3869,18 +3874,23 @@ _IMMUNOSUPPRESSANTS = ("hydroxychloroquine", "plaquenil", "mycophenolate",
                        "belimumab", "prednisone", "methylprednisolone")
 
 
-def _portal_report_data(owner_id: int) -> dict:
-    """The full read-only clinical record for a portal link: the report's
-    auto-findings + curated key labs, plus all labs / ANA / meds / events for
-    free exploration. Documents are added by the common context."""
+def _portal_common_ctx(link):
+    """Shared template context for every portal page, plus the owner id and
+    preferences the per-page data builders need."""
+    owner_id = link["user_id"]
+    clinician = None
+    if link.get("clinician_id"):
+        clinician = next((c for c in db.get_all_clinicians(owner_id)
+                          if c["id"] == link["clinician_id"]), None)
     prefs = db.get_user_preferences(owner_id) or {}
-    end = date.today().isoformat()
-    start = (date.today() - timedelta(days=90)).isoformat()
-    observations = [o for o in db.get_all_daily_observations(owner_id)
-                    if start <= o["date"] <= end]
-    uv = (db.get_uv_data_range(_owner_location_key(prefs), start, end)
-          if observations else [])
-    all_labs = db.get_lab_results(owner_id)
+    ctx = dict(link=link, clinician=clinician, view_label="Clinical record",
+               patient=_portal_identity(prefs))
+    return ctx, owner_id, prefs
+
+
+def _portal_meds(owner_id: int):
+    """(active, past) medications for an owner — active immuno-flagged and
+    sorted immuno first, past sorted by end date, newest first."""
     today = date.today().isoformat()
     meds = db.get_all_medications(owner_id)
     active = [m for m in meds if (m.get("start_date") or "") <= today
@@ -3888,46 +3898,131 @@ def _portal_report_data(owner_id: int) -> dict:
     for m in active:
         m["_immuno"] = any(k in (m.get("drug_name") or "").lower()
                            for k in _IMMUNOSUPPRESSANTS)
-    inactive = [m for m in meds if m.get("end_date") and m["end_date"] < today]
-    pain = [o["pain_scale"] for o in observations if o.get("pain_scale") is not None]
-    fatigue = [o["fatigue_scale"] for o in observations
-               if o.get("fatigue_scale") is not None]
+    active.sort(key=lambda m: (not m["_immuno"], m.get("drug_name") or ""))
+    inactive = sorted([m for m in meds if m.get("end_date") and m["end_date"] < today],
+                      key=lambda m: m.get("end_date") or "", reverse=True)
+    return active, inactive
+
+
+def _portal_labs(owner_id: int) -> dict:
+    all_labs = db.get_lab_results(owner_id)
     return {
-        "period": {"start": start, "end": end, "obs_days": len(observations),
-                   "flare_days": sum(1 for o in observations if o.get("flare_occurred")),
-                   "mean_pain": round(sum(pain) / len(pain), 1) if pain else None,
-                   "mean_fatigue": round(sum(fatigue) / len(fatigue), 1) if fatigue else None},
-        "findings": generate_findings(observations, uv, start, end, user_id=owner_id),
         "key_labs": select_report_labs(all_labs),
         "all_labs": sorted(all_labs, key=lambda x: x.get("date") or "", reverse=True),
         "ana_history": sorted(db.get_ana_results(owner_id),
                               key=lambda x: x.get("date") or "", reverse=True),
-        "active_meds": sorted(active, key=lambda m: (not m["_immuno"],
-                                                     m.get("drug_name") or "")),
-        "inactive_meds": sorted(inactive, key=lambda m: m.get("end_date") or "",
-                                reverse=True),
-        "events": sorted(db.get_clinical_events(owner_id),
-                         key=lambda x: x.get("date") or "", reverse=True),
     }
+
+
+def _portal_symptom_window(owner_id: int) -> dict:
+    """Last-90-day patient-log summary: period stats, symptom frequency, and
+    the flares themselves."""
+    end = date.today().isoformat()
+    start = (date.today() - timedelta(days=90)).isoformat()
+    observations = [o for o in db.get_all_daily_observations(owner_id)
+                    if start <= o["date"] <= end]
+    pain = [o["pain_scale"] for o in observations if o.get("pain_scale") is not None]
+    fatigue = [o["fatigue_scale"] for o in observations
+               if o.get("fatigue_scale") is not None]
+    flares = sorted(
+        [{"date": o["date"], "severity": o.get("flare_severity"),
+          "pain": o.get("pain_scale"), "fatigue": o.get("fatigue_scale")}
+         for o in observations if o.get("flare_occurred")],
+        key=lambda f: f["date"], reverse=True)
+    return {
+        "observations": observations,
+        "period": {"start": start, "end": end, "obs_days": len(observations),
+                   "flare_days": len(flares),
+                   "mean_pain": round(sum(pain) / len(pain), 1) if pain else None,
+                   "mean_fatigue": round(sum(fatigue) / len(fatigue), 1) if fatigue else None},
+        "symptom_freq": symptom_frequency(observations),
+        "flares": flares,
+    }
+
+
+# The record's sections: url slug -> (card title, context builder). The
+# overview page links a card to each; /portal/<token>/<section> serves them.
+PORTAL_SECTIONS = {
+    "documents":   ("Documents",
+                    lambda owner_id, prefs: {"documents": db.get_clinical_documents(owner_id)}),
+    "medications": ("Medications",
+                    lambda owner_id, prefs: dict(zip(("active_meds", "inactive_meds"),
+                                                     _portal_meds(owner_id)))),
+    "labs":        ("Lab results",
+                    lambda owner_id, prefs: _portal_labs(owner_id)),
+    "timeline":    ("Clinical timeline",
+                    lambda owner_id, prefs: {"events": sorted(db.get_clinical_events(owner_id),
+                                                              key=lambda x: x.get("date") or "",
+                                                              reverse=True)}),
+    "symptoms":    ("Symptom history",
+                    lambda owner_id, prefs: _portal_symptom_window(owner_id)),
+}
 
 
 @app.route("/portal/<token>")
 def portal_view(token):
-    """The clinician-facing read-only record. No login: the token is the key."""
+    """The clinician-facing landing page: synopsis, disease-burden chart, and
+    auto-findings up top, then a card per record section. No login: the token
+    is the key."""
     link = _valid_portal_link(token)
     if not link:
         return Response(render_template("portal_invalid.html"), status=403)
     db.record_portal_access(link["id"], request.path)
-    owner_id = link["user_id"]
-    clinician = None
-    if link.get("clinician_id"):
-        clinician = next((c for c in db.get_all_clinicians(owner_id)
-                          if c["id"] == link["clinician_id"]), None)
-    ctx = dict(link=link, clinician=clinician, view_label="Clinical record",
-               patient=_portal_identity(db.get_user_preferences(owner_id) or {}),
-               documents=db.get_clinical_documents(owner_id))
-    ctx.update(_portal_report_data(owner_id))
-    return render_template("portal_report.html", **ctx)
+    ctx, owner_id, prefs = _portal_common_ctx(link)
+
+    sym = _portal_symptom_window(owner_id)
+    period = sym["period"]
+    loc_key = _owner_location_key(prefs)
+    uv = (db.get_uv_data_range(loc_key, period["start"], period["end"])
+          if sym["observations"] else [])
+    labs = _portal_labs(owner_id)
+    active_meds, inactive_meds = _portal_meds(owner_id)
+    events = db.get_clinical_events(owner_id)
+    documents = db.get_clinical_documents(owner_id)
+
+    all_obs = sorted(db.get_all_daily_observations(owner_id), key=lambda x: x["date"])
+    burden = _burden_series(all_obs, period["start"], period["end"], loc_key, owner_id)
+
+    period_days = max((date.fromisoformat(period["end"])
+                       - date.fromisoformat(period["start"])).days, 1)
+    ctx.update(
+        period=period,
+        synopsis={
+            "flares_per_month": round(period["flare_days"] / period_days * 30, 1),
+            "flare_count": period["flare_days"],
+            "period_days": period_days,
+            "dmards": [m["drug_name"] for m in active_meds if m["_immuno"]],
+            "serology": _serology_tags(labs["key_labs"]),
+            "mean_pain": period["mean_pain"],
+            "mean_fatigue": period["mean_fatigue"],
+        },
+        findings=generate_findings(sym["observations"], uv, period["start"],
+                                   period["end"], user_id=owner_id),
+        burden_json=json.dumps(burden),
+        burden_threshold=get_current_weights(owner_id).get("flare_threshold", 8.0),
+        counts={"documents": len(documents), "labs": len(labs["all_labs"]),
+                "ana": len(labs["ana_history"]), "meds_active": len(active_meds),
+                "meds_past": len(inactive_meds), "events": len(events),
+                "obs_days": period["obs_days"]},
+    )
+    return render_template("portal_overview.html", **ctx)
+
+
+@app.route("/portal/<token>/<section>")
+def portal_section(token, section):
+    """One section of the read-only record (documents, medications, labs,
+    timeline, symptoms) — reached from the overview's cards."""
+    link = _valid_portal_link(token)
+    if not link:
+        return Response(render_template("portal_invalid.html"), status=403)
+    if section not in PORTAL_SECTIONS:
+        return Response("Not found", status=404)
+    db.record_portal_access(link["id"], request.path)
+    ctx, owner_id, prefs = _portal_common_ctx(link)
+    title, build = PORTAL_SECTIONS[section]
+    ctx["section_title"] = title
+    ctx.update(build(owner_id, prefs))
+    return render_template(f"portal_{section}.html", **ctx)
 
 
 @app.route("/portal/<token>/document/<int:doc_id>")
@@ -6463,6 +6558,166 @@ def generate_findings(observations, uv_data, start_date, end_date, n_obs=None, u
 # UV correlated report generation
 # ============================================================
 
+# --- Curated lab selection for the clinical report -------------------------
+# "Clinically meaningful marker," not "any abnormal." Core markers are always
+# surfaced (most recent of each, ALL-TIME — never clipped to the report window,
+# since the lupus band / complement / D-dimer that prove a case are usually
+# older than 90 days). A second "watch" set surfaces ONLY when out of range
+# (anomalous lipids and WBC-differential shifts like lymphopenia/eosinopenia
+# are SARD-relevant). Everything else is excluded.
+# Spelling variants of the same analyte -> one canonical marker.
+_LAB_CANON = {
+    "d dimer": "d-dimer",
+    "rheumatoid factor": "rf",
+}
+_LAB_CORE = {
+    "ana screen", "ana titer", "ana pattern", "anti-dsdna", "ena panel",
+    "rf", "lupus band test",
+    "c3", "c4", "igg", "iga", "igm",
+    "crp", "esr", "d-dimer", "creatine kinase",
+}
+_LAB_ABNORMAL_ONLY = {
+    "hdl", "ldl", "total cholesterol", "non-hdl cholesterol", "triglycerides",
+    "lymphocytes", "leukocytes", "wbc", "neutrophils", "absolute eosinophils",
+}
+_LAB_ABNORMAL_FLAGS = {"high", "low", "critical", "abnormal"}
+_LAB_ABNORMAL_QUAL = ("positive", "reactive", "detected", "abnormal")
+
+
+def _lab_marker(lab):
+    raw = (lab.get("test_name") or "").strip().lower()
+    return _LAB_CANON.get(raw, raw)
+
+
+def _lab_is_abnormal(lab):
+    if (lab.get("flag") or "").strip().lower() in _LAB_ABNORMAL_FLAGS:
+        return True
+    q = (lab.get("qualitative_result") or "").strip().lower()
+    return any(t in q for t in _LAB_ABNORMAL_QUAL)
+
+
+def select_report_labs(all_labs):
+    """Curated markers for the report — only what argues the case.
+
+    A marker is surfaced only if it has been abnormal/positive at least once
+    (a marker that's always been normal — IgG, CK, a normal CRP — is noise on a
+    clinical handout). Exceptions kept for context: the ANA panel travels
+    together (titer + pattern shown whenever the screen is positive), and
+    complement is shown as a C3/C4 pair. Per surfaced marker, show the most
+    recent value AND the most abnormal on record (if a different draw), so
+    seroconversion history (RF/ANA once positive, now negative) is preserved.
+    Spelling variants are collapsed. Returns one list, most recent first.
+    """
+    by_marker = {}
+    for lab in all_labs:
+        name = _lab_marker(lab)
+        if name in _LAB_CORE or name in _LAB_ABNORMAL_ONLY:
+            by_marker.setdefault(name, []).append(lab)
+
+    # Markers worth surfacing: anything ever abnormal/positive...
+    keep = {m for m, labs in by_marker.items()
+            if any(_lab_is_abnormal(l) for l in labs)}
+    # ...plus ANA-panel cohesion and complement pairing for context.
+    if "ana screen" in keep:
+        keep |= {"ana titer", "ana pattern"}
+    if keep & {"c3", "c4"}:
+        keep |= {"c3", "c4"}
+
+    picked = []
+    for name in keep:
+        labs = by_marker.get(name) or []
+        if name in _LAB_ABNORMAL_ONLY:          # lipids/WBC: only abnormal draws
+            labs = [l for l in labs if _lab_is_abnormal(l)]
+        if not labs:
+            continue
+        labs.sort(key=lambda l: l.get("date") or "")
+        most_recent = labs[-1]
+        chosen = [most_recent]
+        abnormals = [l for l in labs if _lab_is_abnormal(l)]
+        if abnormals and abnormals[-1] is not most_recent:
+            chosen.append(abnormals[-1])        # most recent abnormal draw
+        picked.extend(chosen)
+
+    picked.sort(key=lambda l: l.get("date") or "", reverse=True)
+    return picked
+
+
+# Symptom categories for the report's frequency table (label order = display order)
+_SYMPTOM_FREQ_KEYS = [
+    ('neurological',   'Neurological'),
+    ('cognitive',      'Cognitive'),
+    ('musculature',    'Musculature'),
+    ('migraine',       'Migraine'),
+    ('pulmonary',      'Pulmonary'),
+    ('dermatological', 'Dermatological'),
+    ('rheumatic',      'Rheumatic'),
+    ('gastro',         'Gastrointestinal'),
+    ('mucosal',        'Mucosal'),
+]
+
+
+def symptom_frequency(observations):
+    """Days each symptom category was flagged (categories present at least
+    once), sorted by count descending. Shared by /report and the portal."""
+    n_obs = len(observations)
+    return sorted(
+        [
+            {'name': label, 'count': count,
+             'percent': round(count / n_obs * 100) if n_obs else 0}
+            for key, label in _SYMPTOM_FREQ_KEYS
+            if (count := sum(1 for o in observations if o.get(key)))
+        ],
+        key=lambda x: x['count'], reverse=True
+    )
+
+
+def _serology_tags(key_labs):
+    """Headline serology strings for the synopsis strip — the markers that
+    argue the case (lupus band, ANA, dsDNA, complements)."""
+    serology, seen = [], set()
+    for lab in key_labs:
+        nm = (lab.get("test_name") or "").lower()
+        flg = (lab.get("flag") or "").lower()
+        ql = (lab.get("qualitative_result") or "").lower()
+        tag = None
+        if "lupus band" in nm and "positive" in ql:
+            tag = "lupus band +"
+        elif nm.startswith("ana screen") and "positive" in ql:
+            tag = "ANA +"
+        elif "dsdna" in nm and flg in ("high", "abnormal", "critical"):
+            tag = "anti-dsDNA ↑"
+        elif nm == "c4" and flg == "low":
+            tag = "C4 low"
+        elif nm == "c3" and flg == "low":
+            tag = "C3 low"
+        if tag and tag not in seen:
+            seen.add(tag)
+            serology.append(tag)
+    return serology
+
+
+def _burden_series(all_obs_sorted, start_date, end_date, loc_key, user_id):
+    """Per-day disease-burden score attribution for the window (same model as
+    /model). Full history feeds the multi-day lookback; only the window gets
+    scored. Shared by /report and the portal overview."""
+    _inject_cycle_phase(all_obs_sorted)
+    by_date = {o["date"]: o for o in all_obs_sorted}
+    window = [o for o in all_obs_sorted if start_date <= o["date"] <= end_date]
+    _inject_scoring_context(window, by_date, loc_key)
+    series = []
+    for o in window:
+        comp = _score_components(o, user_id=user_id)
+        series.append({
+            "date": o["date"], "total": comp["total"],
+            "uv": comp["uv"], "exertion": comp["exertion"],
+            "temperature": comp["temperature"], "symptoms": comp["symptoms"],
+            "pain_fatigue": comp["pain_fatigue"], "burden_delta": comp["burden_delta"],
+            "rmssd": comp["rmssd"], "resp_rate": comp["resp_rate"],
+            "flare": o.get("flare_occurred") == 1, "severity": o.get("flare_severity"),
+        })
+    return series
+
+
 @app.route("/report")
 def clinical_report():
     """Standalone clinical report page with auto-generated findings."""
@@ -6485,12 +6740,25 @@ def clinical_report():
     active_meds = [m for m in all_meds
                    if m["start_date"] <= today_str and
                       (m.get("end_date") is None or m["end_date"] >= today_str)]
+
+    # Disease-modifying therapy for the page-1 summary (HCQ, MMF, active systemic
+    # steroids). Everything else — supplements, symptomatic, topical — drops to
+    # the appendix med list. Topical/ENT steroids are excluded by name.
+    _SYSTEMIC_STEROIDS = ("prednisone", "prednisolone", "methylprednisolone",
+                          "methylprednisone", "dexamethasone")
+
+    def _is_dmard(m):
+        if m.get("is_primary_intervention"):
+            return True
+        name = (m.get("drug_name") or "").lower()
+        return any(s in name for s in _SYSTEMIC_STEROIDS)
+
+    dmard_meds = [m for m in active_meds if _is_dmard(m)]
     
-    # Flagged lab abnormals in period
+    # Key diagnostic markers — curated, ALL-TIME (not window-scoped): the labs
+    # that prove the case, plus any out-of-range lipids/WBC. See select_report_labs().
     all_labs = db.get_lab_results(uid())
-    flagged_labs = [lab for lab in all_labs
-                    if start_date <= lab["date"] <= end_date
-                    and lab.get("flag") in ("high", "low", "critical", "abnormal")]
+    key_labs = select_report_labs(all_labs)
     
     # Clinical events in period
     all_events = db.get_clinical_events(uid())
@@ -6514,27 +6782,8 @@ def clinical_report():
     recent_flare = flare_dates[-1] if flare_dates else None
 
     # Symptom frequency (only categories present at least once)
-    SYMPTOM_KEYS = [
-        ('neurological',   'Neurological'),
-        ('cognitive',      'Cognitive'),
-        ('musculature',    'Musculature'),
-        ('migraine',       'Migraine'),
-        ('pulmonary',      'Pulmonary'),
-        ('dermatological', 'Dermatological'),
-        ('rheumatic',      'Rheumatic'),
-        ('gastro',         'Gastrointestinal'),
-        ('mucosal',        'Mucosal'),
-    ]
     n_obs = len(observations)
-    symptom_freq = sorted(
-        [
-            {'name': label, 'count': count,
-             'percent': round(count / n_obs * 100) if n_obs else 0}
-            for key, label in SYMPTOM_KEYS
-            if (count := sum(1 for o in observations if o.get(key)))
-        ],
-        key=lambda x: x['count'], reverse=True
-    )
+    symptom_freq = symptom_frequency(observations)
 
     # ANA — all-time positive results only (negatives excluded; ANA fluctuates in early disease)
     all_ana = db.get_ana_results(uid()) if hasattr(db, 'get_ana_results') else []
@@ -6545,12 +6794,6 @@ def clinical_report():
         key=lambda a: a['date']
     )
 
-    # Auto-generated findings
-    findings = generate_findings(observations, uv_data, start_date, end_date, n_obs)
-    
-    # UV lag correlations for this period
-    correlations = compute_lag_correlations(observations, uv_data) if observations and uv_data else {}
-    
     # Full tracking period
     all_obs = db.get_all_daily_observations(uid())
     tracking_start = all_obs[0]["date"] if all_obs else None
@@ -6560,6 +6803,26 @@ def clinical_report():
     prefs = get_user_prefs()
     intervention_name = prefs.get("primary_intervention_name") or (CONFIG.get("primary_intervention") or {}).get("name")
     intervention_date = prefs.get("primary_intervention_date") or (CONFIG.get("primary_intervention") or {}).get("start_date")
+
+    # --- Disease-burden score attribution for the window (same model as /model).
+    # Full history feeds the multi-day lookback; only the window gets scored. ---
+    scored = sorted(all_obs, key=lambda x: x["date"])
+    burden_threshold = get_current_weights(uid()).get("flare_threshold", 8.0)
+    burden_data = _burden_series(scored, start_date, end_date,
+                                 get_location_key(), uid())
+
+    # --- Headline synopsis (clinicians scan highlights first) ---
+    period_days = max((date.fromisoformat(end_date) - date.fromisoformat(start_date)).days, 1)
+    serology = _serology_tags(key_labs)
+    synopsis = {
+        "flares_per_month": round(flare_count / period_days * 30, 1),
+        "flare_count": flare_count,
+        "period_days": period_days,
+        "dmards": [m["drug_name"] for m in dmard_meds],
+        "serology": serology,
+        "mean_pain": mean_pain,
+        "mean_fatigue": mean_fatigue,
+    }
 
     return render_template(
         "report.html",
@@ -6573,7 +6836,8 @@ def clinical_report():
         primary_intervention_date=intervention_date,
         observations=observations,
         active_meds=active_meds,
-        flagged_labs=flagged_labs,
+        dmard_meds=dmard_meds,
+        key_labs=key_labs,
         events=events,
         mean_pain=mean_pain,
         mean_fatigue=mean_fatigue,
@@ -6583,8 +6847,9 @@ def clinical_report():
         symptom_freq=symptom_freq,
         n_obs=n_obs,
         positive_ana=positive_ana,
-        findings=findings,
-        correlations_json=json.dumps(correlations),
+        burden_json=json.dumps(burden_data),
+        burden_threshold=burden_threshold,
+        synopsis=synopsis,
         today=date.today().strftime("%B %d, %Y"),
     )
 

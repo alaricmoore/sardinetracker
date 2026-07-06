@@ -1,0 +1,244 @@
+{% extends "portal_base.html" %}
+
+{% block head %}
+{% if burden_json and burden_json != '[]' %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endif %}
+{% endblock %}
+
+{% block dxline %}
+<p class="dxline">A read-only view of the patient's record — headline numbers and
+   auto-generated findings here, with each part of the record one click away below.</p>
+{% endblock %}
+
+{% block portal_content %}
+
+  <!-- Synopsis strip (same headline clinicians see on the in-app report) -->
+  <section class="report-section" style="border-bottom:2px solid var(--border-medium);">
+    <div class="stats">
+      <div class="stat">
+        <div class="k">Flare burden</div>
+        <div class="v" style="color:var(--color-danger);">{{ synopsis.flares_per_month }}<span class="vu">/mo</span></div>
+        <div class="s">{{ synopsis.flare_count }} in {{ synopsis.period_days }} days</div>
+      </div>
+      <div class="stat">
+        <div class="k">Disease-modifying Rx</div>
+        <div class="v2">{% if synopsis.dmards %}{{ synopsis.dmards | join(' + ') }}{% else %}—{% endif %}</div>
+      </div>
+      <div class="stat wide">
+        <div class="k">Serology</div>
+        <div class="v2">{% if synopsis.serology %}{{ synopsis.serology | join(' · ') }}{% else %}—{% endif %}</div>
+      </div>
+      {% if synopsis.mean_pain is not none or synopsis.mean_fatigue is not none %}
+      <div class="stat">
+        <div class="k">Mean burden</div>
+        <div class="v2">{% if synopsis.mean_pain is not none %}pain {{ synopsis.mean_pain }}{% endif %}{% if synopsis.mean_fatigue is not none %} · fatigue {{ synopsis.mean_fatigue }}{% endif %}</div>
+      </div>
+      {% endif %}
+    </div>
+    <p class="section-note" style="margin:var(--space-md) 0 0;">
+      Last 90 days ({{ period.start }} to {{ period.end }}) — {{ period.obs_days }} days logged by the patient.
+    </p>
+  </section>
+
+  {% if burden_json and burden_json != '[]' %}
+  <section class="report-section">
+    <h2>Disease burden over time</h2>
+    <p class="section-note">Daily flare-risk score, stacked by what's driving it.
+       Vertical marks are recorded flares; the dashed line is the flare threshold.</p>
+    <canvas id="chartBurden" style="max-height:340px;"></canvas>
+  </section>
+  {% endif %}
+
+  {% if findings %}
+  <section class="report-section">
+    <h2>Findings</h2>
+    {% for f in findings %}
+    <div class="finding-card">{{ f.text }}</div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <section class="report-section no-print">
+    <h2>The full record</h2>
+    <p class="section-note">Everything behind the summary above, organized by kind.</p>
+    <div class="scards">
+      <a class="scard" href="{{ url_for('portal_section', token=link.token, section='documents') }}">
+        <div class="row"><span class="t">Documents</span><span class="n">{{ counts.documents }} on file</span></div>
+        <p>Clinic notes, pathology, imaging — the original PDFs, openable in place.</p>
+      </a>
+      <a class="scard" href="{{ url_for('portal_section', token=link.token, section='medications') }}">
+        <div class="row"><span class="t">Medications</span><span class="n">{{ counts.meds_active }} current · {{ counts.meds_past }} past</span></div>
+        <p>Current regimen with doses, indications, and start dates, plus discontinued drugs.</p>
+      </a>
+      <a class="scard" href="{{ url_for('portal_section', token=link.token, section='labs') }}">
+        <div class="row"><span class="t">Lab results</span><span class="n">{{ counts.labs }} results</span></div>
+        <p>Key diagnostic markers up top, then the complete history and ANA testing.</p>
+      </a>
+      <a class="scard" href="{{ url_for('portal_section', token=link.token, section='timeline') }}">
+        <div class="row"><span class="t">Clinical timeline</span><span class="n">{{ counts.events }} events</span></div>
+        <p>Encounters, procedures, and imaging across facilities, newest first.</p>
+      </a>
+      <a class="scard" href="{{ url_for('portal_section', token=link.token, section='symptoms') }}">
+        <div class="row"><span class="t">Symptom history</span><span class="n">{{ counts.obs_days }} days logged</span></div>
+        <p>Patient-logged symptom frequency, flares, and severity over the last 90 days.</p>
+      </a>
+    </div>
+  </section>
+
+{% endblock %}
+
+{% block scripts %}
+{% if burden_json and burden_json != '[]' %}
+<script>
+// Same disease-burden chart as the in-app report (report.html), dark palette
+(function() {
+    const D = {{ burden_json | safe }};
+    if (!D.length) return;
+    const THRESHOLD = {{ burden_threshold }};
+    const dates = D.map(d => d.date);
+    const GRID = 'rgba(255,255,255,0.06)';
+    const FONT = "'Source Serif 4', 'Times New Roman', serif";
+    Chart.defaults.font.family = FONT;
+    let printing = false;  // flipped on print/PDF so the chart is ink-on-white
+
+    const flarePlugin = {
+        id: 'flareMarkers',
+        afterDraw(chart) {
+            const { ctx, chartArea, scales } = chart;
+            if (!chartArea || !scales.x) return;
+            const COLORS = { er_visit: '#ff4444', major: '#ff8c00', minor: '#ffcc00' };
+            D.forEach((d, i) => {
+                if (!d.flare) return;
+                const x = scales.x.getPixelForValue(i);
+                if (x < chartArea.left || x > chartArea.right) return;
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top);
+                ctx.lineTo(x, chartArea.bottom);
+                ctx.strokeStyle = COLORS[d.severity] || '#ffcc00';
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.6;
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+    };
+
+    const thresholdPlugin = {
+        id: 'thresholdLine',
+        afterDraw(chart) {
+            const { ctx, chartArea, scales } = chart;
+            if (!chartArea || !scales.y) return;
+            const y = scales.y.getPixelForValue(THRESHOLD);
+            if (y < chartArea.top || y > chartArea.bottom) return;
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(chartArea.left, y);
+            ctx.lineTo(chartArea.right, y);
+            ctx.strokeStyle = printing ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 4]);
+            ctx.stroke();
+            ctx.fillStyle = printing ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.5)';
+            ctx.font = '10px ' + FONT;
+            ctx.textAlign = 'right';
+            ctx.fillText('threshold ' + THRESHOLD, chartArea.right - 4, y - 4);
+            ctx.restore();
+        }
+    };
+
+    const COMPONENTS = [
+        { key: 'uv',           label: 'UV',           color: '#d4b84a' },
+        { key: 'exertion',     label: 'exertion',     color: '#d4a054' },
+        { key: 'temperature',  label: 'temperature',  color: '#c94040' },
+        { key: 'symptoms',     label: 'symptoms',     color: '#9b72cf' },
+        { key: 'pain_fatigue', label: 'pain/fatigue', color: '#e85d9e' },
+        { key: 'burden_delta', label: 'burden delta', color: '#5b9bd5' },
+        { key: 'rmssd',        label: 'RMSSD',        color: '#66bb6a' },
+        { key: 'resp_rate',    label: 'resp rate',    color: '#e0a050' },
+    ];
+
+    const stackedDatasets = COMPONENTS.map(c => ({
+        label: c.label,
+        data: D.map(d => d[c.key]),
+        backgroundColor: c.color,
+        borderWidth: 0,
+        borderSkipped: false,
+    }));
+
+    const burdenChart = new Chart(document.getElementById('chartBurden'), {
+        type: 'bar',
+        plugins: [flarePlugin, thresholdPlugin],
+        data: { labels: dates, datasets: stackedDatasets },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: {
+                    stacked: true,
+                    grid: { color: GRID },
+                    ticks: {
+                        color: '#9994a8',
+                        maxTicksLimit: 15,
+                        callback: function(val, idx) {
+                            const d = dates[idx];
+                            return d ? d.slice(5) : '';
+                        }
+                    }
+                },
+                y: {
+                    stacked: true,
+                    grid: { color: GRID },
+                    ticks: { color: '#9994a8' },
+                    title: { display: true, text: 'score', color: '#9994a8' }
+                }
+            },
+            plugins: {
+                legend: { display: true, labels: { color: '#9994a8', boxWidth: 12, padding: 8, font: { size: 10 } } },
+                tooltip: {
+                    backgroundColor: '#1e1e28',
+                    borderColor: '#2a2a38',
+                    borderWidth: 1,
+                    padding: 10,
+                    cornerRadius: 6,
+                    callbacks: {
+                        title: function(items) {
+                            const idx = items[0].dataIndex;
+                            const d = D[idx];
+                            let t = d.date;
+                            if (d.flare) t += ' — ' + (d.severity === 'er_visit' ? 'ER visit' : (d.severity || '') + ' flare');
+                            return t;
+                        },
+                        afterBody: function(items) {
+                            const idx = items[0].dataIndex;
+                            return ['total: ' + D[idx].total];
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Recolor the chart to ink-on-white when printing / saving to PDF, restore after.
+    function setPrintTheme(on) {
+        printing = on;
+        const ink = on ? '#222222' : '#9994a8';
+        const grid = on ? 'rgba(0,0,0,0.12)' : GRID;
+        const s = burdenChart.options.scales;
+        s.x.ticks.color = ink; s.y.ticks.color = ink;
+        s.x.grid.color = grid; s.y.grid.color = grid;
+        s.y.title.color = ink;
+        burdenChart.options.plugins.legend.labels.color = ink;
+        burdenChart.update('none');
+    }
+    if (window.matchMedia) {
+        const mq = window.matchMedia('print');
+        if (mq.addEventListener) mq.addEventListener('change', e => setPrintTheme(e.matches));
+    }
+    window.addEventListener('beforeprint', () => setPrintTheme(true));
+    window.addEventListener('afterprint', () => setPrintTheme(false));
+})();
+</script>
+{% endif %}
+{% endblock %}
