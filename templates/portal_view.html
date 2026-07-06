@@ -1,51 +1,14 @@
-<!doctype html>
-<html lang="en" data-theme="dark">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex, nofollow">
-  <title>{{ view_label }} record{% if clinician %} — for {{ clinician.name }}{% endif %}</title>
-  <style>
-    /* Site palette (matches sardinetrack base.html, dark default) */
-    :root{ --bg:#0e0e12; --surface:#16161d; --ink:#ffffff; --ink2:rgb(202,196,223);
-      --muted:rgb(159,157,183); --line:#2a2a38; --accent:#9b72cf;
-      --accent-soft:#1e1a2b; --accent-ink:#c3a6ea; }
-    body{ margin:0; background:var(--bg); color:var(--ink);
-      font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.5; }
-    .wrap{ max-width:860px; margin:0 auto; padding:0 18px 60px; }
-    .banner{ background:var(--accent-soft); color:var(--accent-ink); font-size:12.5px;
-      text-align:center; padding:7px 12px; border-radius:0 0 8px 8px; }
-    header{ padding:26px 0 20px; border-bottom:2px solid var(--accent); margin-bottom:24px; }
-    .prep{ font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent);
-      font-weight:700; margin:0 0 10px; }
-    h1{ font-size:clamp(22px,4vw,28px); margin:0 0 4px; }
-    .sub{ color:var(--ink2); font-size:14px; margin:0; }
-    .shell{ background:var(--surface); border:1px solid var(--line); border-radius:12px;
-      padding:26px; text-align:center; color:var(--ink2); }
-    .shell h2{ color:var(--ink); font-size:17px; margin:0 0 8px; }
-    footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--line);
-      color:var(--muted); font-size:11.5px; line-height:1.6; }
-  </style>
-</head>
-<body>
-  <div class="banner">Confidential patient record · read-only · shared at the patient's direction</div>
-  <div class="wrap">
-    <header>
-      <p class="prep">{{ view_label }} view{% if clinician %} · prepared for {{ clinician.name }}{% endif %}</p>
-      <h1>Clinical summary</h1>
-      <p class="sub">A curated, {{ view_label|lower }}-facing view of the patient's record.</p>
-    </header>
+{% extends "portal_base.html" %}
 
-    <div class="shell">
-      <h2>Access confirmed</h2>
-      <p>This link is valid and read-only. The full {{ view_label|lower }} view
-         is being finalized and will appear here.</p>
-    </div>
+{% block dxline %}
+<p class="dxline">A curated, {{ view_label|lower }}-facing view of the patient's record.</p>
+{% endblock %}
 
-    <footer>
-      Read-only. This link expires {{ (link.expires_at or '')[:10] }} and can be turned off by the
-      patient at any time. Confidential — please do not forward.
-    </footer>
-  </div>
-</body>
-</html>
+{% block portal_content %}
+  <section class="report-section">
+    <h2>{{ view_label }} summary</h2>
+    <p class="lead">The full {{ view_label|lower }} summary is being finalized. In the
+       meantime, the complete document library — clinic notes, pathology, and imaging —
+       is available below.</p>
+  </section>
+{% endblock %}

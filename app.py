@@ -899,7 +899,7 @@ def favicon_files(filename):
 @app.before_request
 def require_login():
     """Redirect unauthenticated users to login page."""
-    if request.endpoint in ('login', 'register', 'static', 'favicon_files', 'api_health_sync', 'api_flare_status', 'api_uv_ingest', 'portal_view'):
+    if request.endpoint in ('login', 'register', 'static', 'favicon_files', 'api_health_sync', 'api_flare_status', 'api_uv_ingest', 'portal_view', 'portal_document'):
         return
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
@@ -3907,9 +3907,7 @@ def _portal_rheum_data(owner_id: int) -> dict:
                            for k in _IMMUNOSUPPRESSANTS)
     events = sorted(db.get_clinical_events(owner_id),
                     key=lambda x: x.get("date") or "", reverse=True)[:12]
-    docs = [d for d in db.get_clinical_documents(owner_id)
-            if (d.get("doc_type") in ("pathology", "clinic note"))
-            or (d.get("specialty") or "").lower() in ("rheumatology", "dermatopathology")]
+    # (documents are supplied to every view by the common context — all of them)
     return {
         "lupus_band": band,
         "dif": dif,
@@ -3919,7 +3917,6 @@ def _portal_rheum_data(owner_id: int) -> dict:
         "active_meds": sorted(active, key=lambda m: (not m["_immuno"],
                                                      m.get("drug_name") or "")),
         "events": events,
-        "documents": docs[:20],
     }
 
 
@@ -3939,11 +3936,29 @@ def portal_view(token):
     ctx = dict(link=link, view=view,
                view_label=PORTAL_VIEWS.get(view, view),
                clinician=clinician,
-               patient=_portal_identity(db.get_user_preferences(owner_id) or {}))
+               patient=_portal_identity(db.get_user_preferences(owner_id) or {}),
+               documents=db.get_clinical_documents(owner_id))
     if view == "rheumatology":
         ctx.update(_portal_rheum_data(owner_id))
         return render_template("portal_rheumatology.html", **ctx)
     return render_template("portal_view.html", **ctx)
+
+
+@app.route("/portal/<token>/document/<int:doc_id>")
+def portal_document(token, doc_id):
+    """Serve one of the owner's PDFs through a valid portal link — read-only,
+    scoped to the link's user, so a token can only reach that patient's docs."""
+    link = _valid_portal_link(token)
+    if not link:
+        return Response("Not found", status=404)
+    doc = db.get_clinical_document(link["user_id"], doc_id)
+    if not doc or not doc.get("file_name"):
+        return Response("Not found", status=404)
+    db.record_portal_access(link["id"], request.path)
+    return send_from_directory(
+        _user_docs_dir(link["user_id"]), doc["file_name"],
+        mimetype="application/pdf", as_attachment=False,
+        download_name=doc.get("orig_name") or "document.pdf")
 
 
 @app.route("/portals")
