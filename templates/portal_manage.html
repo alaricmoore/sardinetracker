@@ -49,14 +49,6 @@
           </select>
         </div>
         <div class="form-group">
-          <label>view</label>
-          <select name="view" required>
-            {% for key, label in views.items() %}
-            <option value="{{ key }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
           <label>expires in (days)</label>
           <input type="number" name="days" value="30" min="1" max="365">
         </div>

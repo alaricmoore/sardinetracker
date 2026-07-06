@@ -49,6 +49,11 @@
     .report-section > h2{ font-size:1.3rem; color:var(--ink); font-weight:600; margin:0 0 12px; letter-spacing:-.01em; }
     .lead{font-size:14px;color:var(--ink2);margin:0 0 13px;} .lead b{color:var(--ink);}
     .empty{color:var(--muted);font-size:13px;}
+    .stats{display:flex;gap:26px;flex-wrap:wrap;}
+    .stat .v{font-size:24px;font-weight:700;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums;}
+    .stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:3px;}
+    .findings{margin:0;padding-left:18px;} .findings li{font-size:14px;color:var(--ink2);margin-bottom:8px;line-height:1.55;}
+    .findings li::marker{color:var(--accent);}
     /* shared components */
     .bands{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
     @media(max-width:640px){.bands{grid-template-columns:1fr;}}

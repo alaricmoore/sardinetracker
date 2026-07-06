@@ -1,0 +1,126 @@
+{% extends "portal_base.html" %}
+
+{% block dxline %}
+<p class="dxline">A complete, read-only view of the patient's record — auto-generated
+   findings and key markers up top, then the full labs, medications, timeline, and
+   source documents to explore freely.</p>
+{% endblock %}
+
+{% block portal_content %}
+
+  <section class="report-section">
+    <h2>Snapshot <span style="font-weight:400;color:var(--muted);font-size:.85rem;">— last 90 days</span></h2>
+    <div class="stats">
+      <div class="stat"><div class="v">{{ period.obs_days }}</div><div class="k">days logged</div></div>
+      <div class="stat"><div class="v">{{ period.flare_days }}</div><div class="k">flare days</div></div>
+      <div class="stat"><div class="v">{{ period.mean_pain if period.mean_pain is not none else '—' }}</div><div class="k">mean pain</div></div>
+      <div class="stat"><div class="v">{{ period.mean_fatigue if period.mean_fatigue is not none else '—' }}</div><div class="k">mean fatigue</div></div>
+    </div>
+  </section>
+
+  {% if findings %}
+  <section class="report-section">
+    <h2>Findings</h2>
+    <ul class="findings">
+      {% for f in findings %}<li>{{ f.text }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="report-section">
+    <h2>Key diagnostic markers</h2>
+    <p class="lead">Curated to what argues the case — every marker abnormal or positive at least once, most recent draw (and the most abnormal, if a different draw).</p>
+    {% if key_labs %}
+    <div class="scroll"><table>
+      <thead><tr><th>test</th><th class="n">value</th><th>reference</th><th>flag</th><th>date</th></tr></thead>
+      <tbody>
+        {% for l in key_labs %}
+        <tr>
+          <td>{{ l.test_name }}</td>
+          <td class="n">{{ l.numeric_value if l.numeric_value is not none else l.qualitative_result }}{% if l.unit %} {{ l.unit }}{% endif %}</td>
+          <td style="color:var(--muted);">{{ l.reference_range or '' }}</td>
+          <td>{%- if l.flag in ('high','abnormal','critical') %}<span class="flag-high">{{ l.flag }}</span>{% elif l.flag == 'low' %}<span class="flag-low">low</span>{% elif l.flag %}{{ l.flag }}{% endif -%}</td>
+          <td style="color:var(--muted);">{{ l.date }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="empty">No key markers on file.</p>{% endif %}
+  </section>
+
+  <section class="report-section">
+    <h2>Current medications</h2>
+    {% if active_meds %}
+    {% for m in active_meds %}
+    <div class="medrow">
+      <span class="nm">{{ m.drug_name }}</span>
+      {% if m._immuno %}<span class="pill">immuno</span>{% endif %}
+      <span class="meta">{% if m.dose %}{{ m.dose }}{{ m.unit or '' }} {% endif %}{{ m.frequency or '' }}{% if m.indication %} · {{ m.indication }}{% endif %}{% if m.start_date %} · since {{ m.start_date }}{% endif %}</span>
+    </div>
+    {% endfor %}
+    {% else %}<p class="empty">No active medications on file.</p>{% endif %}
+  </section>
+
+  <section class="report-section">
+    <h2>Clinical timeline</h2>
+    {% if events %}
+    {% for e in events %}
+    <div class="evt">
+      <span class="d">{{ e.date }}</span> · <b>{{ e.event_type }}</b>{% if e.provider %} · {{ e.provider }}{% endif %}{% if e.facility %} · {{ e.facility }}{% endif %}
+      {% if e.notes %}<div class="p">{{ e.notes[:220] }}{% if e.notes|length > 220 %}…{% endif %}</div>{% endif %}
+    </div>
+    {% endfor %}
+    {% else %}<p class="empty">No clinical events on file.</p>{% endif %}
+  </section>
+
+  <section class="report-section">
+    <h2>All lab results <span style="font-weight:400;color:var(--muted);font-size:.85rem;">— {{ all_labs|length }} results, newest first</span></h2>
+    {% if all_labs %}
+    <div class="scroll"><table>
+      <thead><tr><th>date</th><th>test</th><th class="n">value</th><th>reference</th><th>flag</th><th>source</th></tr></thead>
+      <tbody>
+        {% for l in all_labs %}
+        <tr>
+          <td style="color:var(--muted);">{{ l.date }}</td>
+          <td>{{ l.test_name }}</td>
+          <td class="n">{{ l.numeric_value if l.numeric_value is not none else l.qualitative_result }}{% if l.unit %} {{ l.unit }}{% endif %}</td>
+          <td style="color:var(--muted);">{{ l.reference_range or '' }}</td>
+          <td>{%- if l.flag in ('high','abnormal','critical') %}<span class="flag-high">{{ l.flag }}</span>{% elif l.flag == 'low' %}<span class="flag-low">low</span>{% elif l.flag %}{{ l.flag }}{% endif -%}</td>
+          <td style="color:var(--muted);">{{ l.lab_facility or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="empty">No labs on file.</p>{% endif %}
+  </section>
+
+  <section class="report-section">
+    <h2>ANA history</h2>
+    {% if ana_history %}
+    <div class="scroll"><table>
+      <thead><tr><th>date</th><th>screen</th><th>titer</th><th>pattern</th><th>provider</th></tr></thead>
+      <tbody>
+        {% for a in ana_history %}
+        <tr><td>{{ a.date }}</td><td>{{ a.screen_result or '' }}</td>
+            <td>{% if a.titer_integer %}1:{{ a.titer_integer }}{% endif %}</td>
+            <td style="white-space:normal;">{{ a.patterns or '' }}</td>
+            <td>{{ a.provider or '' }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="empty">No ANA results on file.</p>{% endif %}
+  </section>
+
+  {% if inactive_meds %}
+  <section class="report-section">
+    <h2>Past medications</h2>
+    {% for m in inactive_meds %}
+    <div class="medrow">
+      <span class="nm">{{ m.drug_name }}</span>
+      <span class="meta">{% if m.dose %}{{ m.dose }}{{ m.unit or '' }} {% endif %}{% if m.indication %}{{ m.indication }} · {% endif %}{{ m.start_date or '' }} – {{ m.end_date or '' }}</span>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+{% endblock %}

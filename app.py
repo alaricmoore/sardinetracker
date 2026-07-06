@@ -3818,13 +3818,7 @@ def delete_document(doc_id):
 # admin, or export endpoint — this section only ever reads curated data for the
 # link's own user. Management routes below (/portals*) require login as normal.
 
-PORTAL_VIEWS = {
-    "rheumatology": "Rheumatology",
-    "cardiology":   "Cardiology",
-    "dermatology":  "Dermatology",
-    "neurology":    "Neurology",
-    "primary_care": "Primary care",
-}
+PORTAL_VIEWS = {"full": "Full record"}   # one read-only record, not per-specialty
 
 
 def _valid_portal_link(token: str):
@@ -3849,9 +3843,6 @@ def _portal_security_headers(resp):
     return resp
 
 
-BUILT_PORTAL_VIEWS = {"rheumatology"}   # others fall back to the shell for now
-
-
 def _portal_identity(prefs: dict) -> dict:
     dob = prefs.get("patient_dob")
     age = None
@@ -3865,39 +3856,31 @@ def _portal_identity(prefs: dict) -> dict:
     return {"name": prefs.get("patient_name"), "dob": dob, "age": age}
 
 
-def _latest_labs_matching(owner_id: int, keywords) -> list:
-    """Most-recent lab per distinct test name whose name contains a keyword."""
-    latest = {}
-    for l in db.get_lab_results(owner_id):
-        tl = (l.get("test_name") or "").lower()
-        if not any(k in tl for k in keywords):
-            continue
-        cur = latest.get(tl)
-        if cur is None or (l.get("date") or "") > (cur.get("date") or ""):
-            latest[tl] = l
-    return sorted(latest.values(), key=lambda x: (x.get("test_name") or "").lower())
+def _owner_location_key(prefs: dict) -> str:
+    lat = prefs.get("location_lat") or CONFIG.get("location_lat")
+    lon = prefs.get("location_lon") or CONFIG.get("location_lon")
+    if lat and lon:
+        return db.make_location_key(float(lat), float(lon))
+    return "default"
 
 
 _IMMUNOSUPPRESSANTS = ("hydroxychloroquine", "plaquenil", "mycophenolate",
                        "cellcept", "methotrexate", "azathioprine", "rituximab",
                        "belimumab", "prednisone", "methylprednisolone")
 
-_RHEUM_SEROLOGY = ("dsdna", "anti-dna", "c3", "c4", "ch50", "complement",
-                   "esr", "sed rate", "crp", "c-reactive", "rheumatoid", " rf",
-                   "ccp", "ena", "smith", "rnp", "ro60", "ss-a", "ss-b", "anti-la",
-                   "iga", "igg", "igm", "aldolase", "beta-2", "creatine kinase",
-                   "anticardiolipin", "lupus anticoag", "lupus reflex",
-                   "jo-1", "mi-2", "mda-5", "tif-1", "nxp-2")
 
-
-def _portal_rheum_data(owner_id: int) -> dict:
-    labs = db.get_lab_results(owner_id)
-    band = sorted(
-        [l for l in labs if "lupus band" in (l.get("test_name") or "").lower()],
-        key=lambda x: x.get("date") or "")
-    dif = sorted(
-        [l for l in labs if (l.get("test_name") or "").lower().startswith("dif ")],
-        key=lambda x: x.get("date") or "")
+def _portal_report_data(owner_id: int) -> dict:
+    """The full read-only clinical record for a portal link: the report's
+    auto-findings + curated key labs, plus all labs / ANA / meds / events for
+    free exploration. Documents are added by the common context."""
+    prefs = db.get_user_preferences(owner_id) or {}
+    end = date.today().isoformat()
+    start = (date.today() - timedelta(days=90)).isoformat()
+    observations = [o for o in db.get_all_daily_observations(owner_id)
+                    if start <= o["date"] <= end]
+    uv = (db.get_uv_data_range(_owner_location_key(prefs), start, end)
+          if observations else [])
+    all_labs = db.get_lab_results(owner_id)
     today = date.today().isoformat()
     meds = db.get_all_medications(owner_id)
     active = [m for m in meds if (m.get("start_date") or "") <= today
@@ -3905,24 +3888,32 @@ def _portal_rheum_data(owner_id: int) -> dict:
     for m in active:
         m["_immuno"] = any(k in (m.get("drug_name") or "").lower()
                            for k in _IMMUNOSUPPRESSANTS)
-    events = sorted(db.get_clinical_events(owner_id),
-                    key=lambda x: x.get("date") or "", reverse=True)[:12]
-    # (documents are supplied to every view by the common context — all of them)
+    inactive = [m for m in meds if m.get("end_date") and m["end_date"] < today]
+    pain = [o["pain_scale"] for o in observations if o.get("pain_scale") is not None]
+    fatigue = [o["fatigue_scale"] for o in observations
+               if o.get("fatigue_scale") is not None]
     return {
-        "lupus_band": band,
-        "dif": dif,
-        "serology": _latest_labs_matching(owner_id, _RHEUM_SEROLOGY),
+        "period": {"start": start, "end": end, "obs_days": len(observations),
+                   "flare_days": sum(1 for o in observations if o.get("flare_occurred")),
+                   "mean_pain": round(sum(pain) / len(pain), 1) if pain else None,
+                   "mean_fatigue": round(sum(fatigue) / len(fatigue), 1) if fatigue else None},
+        "findings": generate_findings(observations, uv, start, end, user_id=owner_id),
+        "key_labs": select_report_labs(all_labs),
+        "all_labs": sorted(all_labs, key=lambda x: x.get("date") or "", reverse=True),
         "ana_history": sorted(db.get_ana_results(owner_id),
-                              key=lambda x: x.get("date") or ""),
+                              key=lambda x: x.get("date") or "", reverse=True),
         "active_meds": sorted(active, key=lambda m: (not m["_immuno"],
                                                      m.get("drug_name") or "")),
-        "events": events,
+        "inactive_meds": sorted(inactive, key=lambda m: m.get("end_date") or "",
+                                reverse=True),
+        "events": sorted(db.get_clinical_events(owner_id),
+                         key=lambda x: x.get("date") or "", reverse=True),
     }
 
 
 @app.route("/portal/<token>")
 def portal_view(token):
-    """The clinician-facing read-only view. No login: the token is the key."""
+    """The clinician-facing read-only record. No login: the token is the key."""
     link = _valid_portal_link(token)
     if not link:
         return Response(render_template("portal_invalid.html"), status=403)
@@ -3932,16 +3923,11 @@ def portal_view(token):
     if link.get("clinician_id"):
         clinician = next((c for c in db.get_all_clinicians(owner_id)
                           if c["id"] == link["clinician_id"]), None)
-    view = link["view"]
-    ctx = dict(link=link, view=view,
-               view_label=PORTAL_VIEWS.get(view, view),
-               clinician=clinician,
+    ctx = dict(link=link, clinician=clinician, view_label="Clinical record",
                patient=_portal_identity(db.get_user_preferences(owner_id) or {}),
                documents=db.get_clinical_documents(owner_id))
-    if view == "rheumatology":
-        ctx.update(_portal_rheum_data(owner_id))
-        return render_template("portal_rheumatology.html", **ctx)
-    return render_template("portal_view.html", **ctx)
+    ctx.update(_portal_report_data(owner_id))
+    return render_template("portal_report.html", **ctx)
 
 
 @app.route("/portal/<token>/document/<int:doc_id>")
@@ -3980,9 +3966,6 @@ def portals_manage():
 @login_required
 def portals_create():
     form = request.form
-    view = (form.get("view") or "").strip()
-    if view not in PORTAL_VIEWS:
-        return redirect(url_for("portals_manage"))
     clinician_id = int(form["clinician_id"]) if form.get("clinician_id") else None
     label = (form.get("label") or "").strip() or None
     try:
@@ -3990,7 +3973,7 @@ def portals_create():
     except ValueError:
         days = 30
     expires_at = (datetime.utcnow() + timedelta(days=days)).isoformat()
-    db.create_portal_link(uid(), clinician_id, view, label, expires_at)
+    db.create_portal_link(uid(), clinician_id, "full", label, expires_at)
     return redirect(url_for("portals_manage"))
 
 
@@ -6375,8 +6358,12 @@ def _export_csvs_to_zip(zipf):
 # Clinical Report
 # ============================================================
 
-def generate_findings(observations, uv_data, start_date, end_date, n_obs=None):
-    """Auto-generate clinical findings from data."""
+def generate_findings(observations, uv_data, start_date, end_date, n_obs=None, user_id=None):
+    """Auto-generate clinical findings from data.
+
+    user_id defaults to the logged-in user; pass it explicitly (e.g. from the
+    read-only portal, which has no session) to scope the medication lookup.
+    """
     import numpy as np
     from scipy import stats
 
@@ -6459,7 +6446,7 @@ def generate_findings(observations, uv_data, start_date, end_date, n_obs=None):
             })
 
     # Medications started during this period
-    all_meds = db.get_all_medications(uid())
+    all_meds = db.get_all_medications(user_id if user_id is not None else uid())
     meds_started = [m for m in all_meds if start_date <= m['start_date'] <= end_date]
     for med in meds_started:
         dose_str = f"{med.get('dose', '') or ''} {med.get('unit', '') or ''}".strip()
