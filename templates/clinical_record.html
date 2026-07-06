@@ -782,6 +782,20 @@
                        placeholder="reason / purpose">
             </div>
             <div class="form-group">
+                <label style="display:flex; align-items:center; gap:var(--space-sm); cursor:pointer;">
+                    <input type="checkbox" name="is_primary_intervention" value="1"
+                           style="accent-color:var(--color-accent);">
+                    <span>Track as primary intervention on HRV and symptom charts</span>
+                </label>
+            </div>
+            <div class="form-group">
+                <label style="display:flex; align-items:center; gap:var(--space-sm); cursor:pointer;">
+                    <input type="checkbox" name="is_secondary_intervention" value="1"
+                           style="accent-color:var(--color-accent);">
+                    <span>Track as secondary intervention (reference line)</span>
+                </label>
+            </div>
+            <div class="form-group">
                 <label>notes</label>
                 <textarea name="notes"
                     placeholder="dose changes, side effects, prescriber..."
@@ -1083,34 +1097,85 @@
                             <div class="inline-edit-grid">
                                 <div class="form-group">
                                     <label>medication *</label>
-                                    <input type="text" name="drug_name" required 
+                                    <input type="text" name="drug_name" required
                                            value="{{ med.drug_name }}">
                                 </div>
                                 <div class="form-group">
                                     <label>dose</label>
-                                    <input type="number" name="dose" step="0.01" 
+                                    <input type="number" name="dose" step="0.01"
                                            value="{{ med.dose or '' }}">
                                 </div>
                                 <div class="form-group">
                                     <label>unit</label>
-                                    <input type="text" name="unit" 
+                                    <input type="text" name="unit"
                                            value="{{ med.unit or '' }}">
                                 </div>
                                 <div class="form-group">
+                                    <label>frequency</label>
+                                    <select name="frequency">
+                                        <option value="">—</option>
+                                        <option value="daily" {% if med.frequency == 'daily' %}selected{% endif %}>daily</option>
+                                        <option value="twice daily" {% if med.frequency == 'twice daily' %}selected{% endif %}>twice daily</option>
+                                        <option value="three times daily" {% if med.frequency == 'three times daily' %}selected{% endif %}>three times daily</option>
+                                        <option value="as needed" {% if med.frequency == 'as needed' %}selected{% endif %}>as needed</option>
+                                        <option value="weekly" {% if med.frequency == 'weekly' %}selected{% endif %}>weekly</option>
+                                        <option value="taper" {% if med.frequency == 'taper' %}selected{% endif %}>taper</option>
+                                        <option value="one-time (injection)" {% if med.frequency == 'one-time (injection)' %}selected{% endif %}>one-time (injection)</option>
+                                        <option value="every 2 weeks" {% if med.frequency == 'every 2 weeks' %}selected{% endif %}>every 2 weeks</option>
+                                        <option value="every 4 weeks (monthly)" {% if med.frequency == 'every 4 weeks (monthly)' %}selected{% endif %}>every 4 weeks (monthly)</option>
+                                        <option value="every 6 weeks" {% if med.frequency == 'every 6 weeks' %}selected{% endif %}>every 6 weeks</option>
+                                        <option value="every 8 weeks" {% if med.frequency == 'every 8 weeks' %}selected{% endif %}>every 8 weeks</option>
+                                        <option value="every 12 weeks (quarterly)" {% if med.frequency == 'every 12 weeks (quarterly)' %}selected{% endif %}>every 12 weeks (quarterly)</option>
+                                        <option value="every 6 months" {% if med.frequency == 'every 6 months' %}selected{% endif %}>every 6 months</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>category</label>
+                                    <select name="category">
+                                        <option value="">—</option>
+                                        <option value="prescription" {% if med.category == 'prescription' %}selected{% endif %}>prescription</option>
+                                        <option value="injection (one-time/periodic IM/IV)" {% if med.category == 'injection (one-time/periodic IM/IV)' %}selected{% endif %}>injection (one-time/periodic IM/IV)</option>
+                                        <option value="infusion (periodic biologic)" {% if med.category == 'infusion (periodic biologic)' %}selected{% endif %}>infusion (periodic biologic)</option>
+                                        <option value="supplement" {% if med.category == 'supplement' %}selected{% endif %}>supplement</option>
+                                        <option value="OTC" {% if med.category == 'OTC' %}selected{% endif %}>OTC</option>
+                                        <option value="taper" {% if med.category == 'taper' %}selected{% endif %}>taper</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
                                     <label>start date *</label>
-                                    <input type="date" name="start_date" required 
+                                    <input type="date" name="start_date" required
                                            value="{{ med.start_date }}">
                                 </div>
                                 <div class="form-group">
                                     <label>end date</label>
-                                    <input type="date" name="end_date" 
+                                    <input type="date" name="end_date"
                                            value="{{ med.end_date or '' }}"
                                            placeholder="Clear to reactivate">
                                 </div>
                                 <div class="form-group" style="grid-column: 1 / -1;">
                                     <label>indication</label>
-                                    <input type="text" name="indication" 
+                                    <input type="text" name="indication"
                                            value="{{ med.indication or '' }}">
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label style="display:flex; align-items:center; gap:var(--space-sm); cursor:pointer;">
+                                        <input type="checkbox" name="is_primary_intervention" value="1"
+                                               {% if med.is_primary_intervention %}checked{% endif %}
+                                               style="accent-color:var(--color-accent);">
+                                        <span>Track as primary intervention on HRV and symptom charts</span>
+                                    </label>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label style="display:flex; align-items:center; gap:var(--space-sm); cursor:pointer;">
+                                        <input type="checkbox" name="is_secondary_intervention" value="1"
+                                               {% if med.is_secondary_intervention %}checked{% endif %}
+                                               style="accent-color:var(--color-accent);">
+                                        <span>Track as secondary intervention (reference line)</span>
+                                    </label>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label>notes</label>
+                                    <textarea name="notes" style="min-height:60px;">{{ med.notes or '' }}</textarea>
                                 </div>
                             </div>
                             <div class="inline-edit-actions">
@@ -1827,10 +1892,20 @@ function confirmDelete(id, type) {
     const btn = document.getElementById(`delete-${type}-${id}`);
     
     if (btn.classList.contains('confirm-delete')) {
-        // Second click - actually delete
+        // Second click - actually delete.
+        // This form is created after page load, so base.html's auto-injector
+        // never sees it — add the CSRF token ourselves or the POST is rejected.
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = deleteUrl;
+        const token = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (token) {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'csrf_token';
+            inp.value = token;
+            form.appendChild(inp);
+        }
         document.body.appendChild(form);
         form.submit();
     } else {
