@@ -1495,6 +1495,18 @@ def daily_entry():
     )
 
 
+# The only valid flare severities. Anything else from a form is dropped to
+# None before storage — the value later renders into the portal's burden
+# chart, so keeping it to a known set is defense-in-depth against injection.
+VALID_FLARE_SEVERITIES = ("minor", "major", "er_visit")
+
+
+def _clean_flare_severity(raw):
+    """Return raw only if it's a recognized severity, else None."""
+    raw = (raw or "").strip()
+    return raw if raw in VALID_FLARE_SEVERITIES else None
+
+
 @app.route("/daily", methods=["POST"])
 def daily_entry_submit():
     """Handle daily entry form submission."""
@@ -1546,7 +1558,7 @@ def daily_entry_submit():
         "strike_physical": get_bool("strike_physical"),
         "strike_environmental": get_bool("strike_environmental"),
         "flare_occurred": get_bool("flare_occurred"),
-        "flare_severity": form.get("flare_severity") if form.get("flare_occurred") else None,
+        "flare_severity": _clean_flare_severity(form.get("flare_severity")) if form.get("flare_occurred") else None,
         "notes": form.get("notes", "").strip() or None,
         "period_flow": form.get("period_flow") or None,
         "cramping": form.get("cramping") or None,
@@ -3998,7 +4010,7 @@ def portal_view(token):
         },
         findings=generate_findings(sym["observations"], uv, period["start"],
                                    period["end"], user_id=owner_id),
-        burden_json=json.dumps(burden),
+        burden=burden,
         burden_threshold=get_current_weights(owner_id).get("flare_threshold", 8.0),
         counts={"documents": len(documents), "labs": len(labs["all_labs"]),
                 "ana": len(labs["ana_history"]), "meds_active": len(active_meds),
@@ -4123,7 +4135,7 @@ def backfill_flare():
     severity = form.get("flare_severity", "").strip()
     notes = form.get("notes", "").strip() or None
 
-    if not flare_date or severity not in ("minor", "major", "er_visit"):
+    if not flare_date or severity not in VALID_FLARE_SEVERITIES:
         return redirect(url_for("clinical_record", msg="Date and severity are required.") + "#backfill")
 
     try:
@@ -4156,7 +4168,7 @@ def backfill_flare_update():
     severity = form.get("flare_severity", "").strip()
     notes = form.get("notes", "").strip() or None
 
-    if not flare_date or severity not in ("minor", "major", "er_visit"):
+    if not flare_date or severity not in VALID_FLARE_SEVERITIES:
         return redirect(url_for("clinical_record", msg="Date and severity are required.") + "#backfill")
 
     data = {
@@ -6847,7 +6859,7 @@ def clinical_report():
         symptom_freq=symptom_freq,
         n_obs=n_obs,
         positive_ana=positive_ana,
-        burden_json=json.dumps(burden_data),
+        burden=burden_data,
         burden_threshold=burden_threshold,
         synopsis=synopsis,
         today=date.today().strftime("%B %d, %Y"),
@@ -7428,7 +7440,7 @@ def mobile_log():
         # Flare
         data["flare_occurred"] = get_bool("flare_occurred")
         if data["flare_occurred"]:
-            data["flare_severity"] = form.get("flare_severity")
+            data["flare_severity"] = _clean_flare_severity(form.get("flare_severity"))
 
         db.upsert_daily_observations(uid(), data)
         return redirect(url_for("mobile_status"))

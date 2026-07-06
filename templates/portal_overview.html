@@ -1,7 +1,7 @@
 {% extends "portal_base.html" %}
 
 {% block head %}
-{% if burden_json and burden_json != '[]' %}
+{% if burden %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 {% endif %}
 {% endblock %}
@@ -41,7 +41,7 @@
     </p>
   </section>
 
-  {% if burden_json and burden_json != '[]' %}
+  {% if burden %}
   <section class="report-section">
     <h2>Disease burden over time</h2>
     <p class="section-note">Daily flare-risk score, stacked by what's driving it.
@@ -89,11 +89,11 @@
 {% endblock %}
 
 {% block scripts %}
-{% if burden_json and burden_json != '[]' %}
+{% if burden %}
 <script>
 // Same disease-burden chart as the in-app report (report.html), dark palette
 (function() {
-    const D = {{ burden_json | safe }};
+    const D = {{ burden | tojson }};
     if (!D.length) return;
     const THRESHOLD = {{ burden_threshold }};
     const dates = D.map(d => d.date);

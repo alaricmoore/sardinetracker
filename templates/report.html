@@ -128,7 +128,7 @@
 <!-- ============================================================
      DISEASE-BURDEN CHART — hero visual
      ============================================================ -->
-{% if burden_json and burden_json != '[]' %}
+{% if burden %}
 <div class="report-section">
     <h2 style="margin:0 0 var(--space-xs) 0; font-size:1.3rem; color:var(--text-primary);">
         Disease Burden Over Time
@@ -463,10 +463,10 @@
 {% endblock %}
 
 {% block scripts %}
-{% if burden_json and burden_json != '[]' %}
+{% if burden %}
 <script>
 (function() {
-    const D = {{ burden_json | safe }};
+    const D = {{ burden | tojson }};
     if (!D.length) return;
     const THRESHOLD = {{ burden_threshold }};
     const dates = D.map(d => d.date);
