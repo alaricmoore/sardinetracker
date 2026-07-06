@@ -1,0 +1,14 @@
+// sardinetracker.com landing page — an assets-only Worker (no server code).
+// Deploy from this directory with: npx wrangler deploy
+// The custom_domain routes auto-create the apex + www DNS records in the zone.
+{
+  "name": "sardinetracker-site",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./public"
+  },
+  "routes": [
+    { "pattern": "sardinetracker.com", "custom_domain": true },
+    { "pattern": "www.sardinetracker.com", "custom_domain": true }
+  ]
+}
