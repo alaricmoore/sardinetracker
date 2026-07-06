@@ -6,7 +6,7 @@ Built for people who need to see patterns in their own data when the medical sys
 
 (Well, built for one person who needed to see patterns, but she figured she couldn't be the only nut out there.)
 
-> **Note:** This is the public codebase of what was originally released as `biotracking`, now named **sardine-track** (a SARDs pun — "systemic autoimmune rheumatic disease," plus a tracker that sticks with you). The GitHub rename keeps the old URL as a redirect, so existing links still work. Active experimentation continues in a private fork that may push features back upstream when they prove out. The iOS companion app lives in its own repo: **[sardinessync](https://github.com/alaricmoore/sardinessync)**. Want to know how your data is stored and how it gets to your phone? See the [remote access guide](REMOTE_ACCESS.md).
+> **Note:** This is the public codebase of what was originally released as `biotracking`, now named **sardine-track** (a SARDs pun — "systemic autoimmune rheumatic disease," plus a tracker that sticks with you). The GitHub rename keeps the old URL as a redirect, so existing links still work. Active experimentation continues in a private fork that may push features back upstream when they prove out. The phone companions live in their own repos: **[sardinessync](https://github.com/alaricmoore/sardinessync)** (iOS/Apple Health) and **[sardinessync-android](https://github.com/alaricmoore/sardinessync-android)** (Android/Health Connect — for anyone whose wearable isn't an Apple Watch). Want to know how your data is stored and how it gets to your phone? See the [remote access guide](REMOTE_ACCESS.md).
 >
 > **About the family-instance framing:** the app supports multiple users and was originally built hoping family with shared genetic risk might want to track alongside. In practice the daily-entry burden has kept adoption to one. Multi-user plumbing is preserved — if a family member or friend does decide to try, they can register their own account on the same instance without affecting anyone else's data.
 
@@ -22,7 +22,7 @@ Sardine-track helps you:
 - Keep a longitudinal record of labs, medications, & clinical events, as well a list of your clinicians
 - Run flare forecasting based on your own historical patterns — transparent scoring, not a black box, and tuned on your own n=1 data
 - Evaluate medical interventions (hydroxychloroquine, steroids, biologics, whatever): per-medication pre/post flare impact, autonomic shift, duration-of-effect for one-time doses, and structured logging of side effects, rebounds, and dose changes
-- Auto-sync biometrics from Apple Health via the **[sardinessync](https://github.com/alaricmoore/sardinessync)** iOS companion app (steps, HRV/SDNN, RMSSD, resting heart rate, SpO2, respiratory rate, basal body temperature, time in daylight)
+- Auto-sync biometrics from your phone: the **[sardinessync](https://github.com/alaricmoore/sardinessync)** iOS companion (Apple Health) or the **[sardinessync-android](https://github.com/alaricmoore/sardinessync-android)** Android companion (Health Connect — works with any wearable that writes to it: Fitbit, Garmin, Samsung, Oura, Pixel Watch, not just an Apple Watch). Steps, HRV/SDNN, RMSSD, resting heart rate, SpO2, respiratory rate, basal body temperature, time in daylight.
 - Share a read-only, expiring view of your record with a clinician — one link, no account needed on their end, revocable any time
 - Keep all your data local — nothing leaves your computer, if you don't want it to.
 
