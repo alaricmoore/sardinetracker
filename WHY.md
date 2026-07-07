@@ -1,4 +1,4 @@
-# sardine-track — the story
+# sardinetracker — the story
 
 ## Why This Exists
 

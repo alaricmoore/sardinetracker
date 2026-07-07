@@ -7598,8 +7598,8 @@ def admin_delete_user(user_id):
 # ============================================================
 
 if __name__ == "__main__":
-    print("\nsardinetrack")
-    print("============")
+    print("\nsardinetracker")
+    print("==============")
     print(f"Patient: {CONFIG.get('patient_name', 'not set')}")
     print(f"Starting server...")
     print(f"\nLocal:  http://localhost:5000")

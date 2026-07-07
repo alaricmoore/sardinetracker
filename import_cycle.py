@@ -129,7 +129,7 @@ def _resolve_user_id(args) -> int:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Import Apple Health cycle CSV into sardinetrack.")
+    parser = argparse.ArgumentParser(description="Import Apple Health cycle CSV into sardinetracker.")
     parser.add_argument("--csv", default="cycle_2024_2026.csv", help="Path to exported CSV file")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
     user_group = parser.add_mutually_exclusive_group()

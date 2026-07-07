@@ -76,7 +76,7 @@ def run_import(csv_path: str, user_id: int = 1, dry_run: bool = False,
     config = load_config()
     temp_baseline = config.get("temp_baseline_f", 97.2)
 
-    print(f"sardinetrack apple health import")
+    print(f"sardinetracker apple health import")
     print(f"================================")
     print(f"File:       {csv_path}")
     print(f"Baseline:   {temp_baseline}°F")

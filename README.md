@@ -1,4 +1,4 @@
-# sardine-track (biotracking)
+# sardinetracker (biotracking)
 
 A local-only health tracking application for patients navigating complex diagnostic journeys.
 
@@ -6,7 +6,7 @@ Built for people who need to see patterns in their own data when the medical sys
 
 (Well, built for one person who needed to see patterns, but she figured she couldn't be the only nut out there.)
 
-> **Note:** This is the public codebase of what was originally released as `biotracking`, now named **sardine-track** (a SARDs pun — "systemic autoimmune rheumatic disease," plus a tracker that sticks with you). The GitHub rename keeps the old URL as a redirect, so existing links still work. Active experimentation continues in a private fork that may push features back upstream when they prove out. The phone companions live in their own repos: **[sardinessync](https://github.com/alaricmoore/sardinessync)** (iOS/Apple Health) and **[sardinessync-android](https://github.com/alaricmoore/sardinessync-android)** (Android/Health Connect — for anyone whose wearable isn't an Apple Watch). Want to know how your data is stored and how it gets to your phone? See the [remote access guide](REMOTE_ACCESS.md).
+> **Note:** This is the public codebase of what was originally released as `biotracking`, briefly `sardine-track`, and now named **sardinetracker** (a SARDs pun — "systemic autoimmune rheumatic disease," plus a tracker that sticks with you — matching [sardinetracker.com](https://sardinetracker.com)). The GitHub renames keep the old URLs as redirects, so existing links still work. Active experimentation continues in a private fork that may push features back upstream when they prove out. The phone companions live in their own repos: **[sardinessync](https://github.com/alaricmoore/sardinessync)** (iOS/Apple Health) and **[sardinesync-android](https://github.com/alaricmoore/sardinesync-android)** (Android/Health Connect — for anyone whose wearable isn't an Apple Watch). Want to know how your data is stored and how it gets to your phone? See the [remote access guide](REMOTE_ACCESS.md).
 >
 > **About the family-instance framing:** the app supports multiple users and was originally built hoping family with shared genetic risk might want to track alongside. In practice the daily-entry burden has kept adoption to one. Multi-user plumbing is preserved — if a family member or friend does decide to try, they can register their own account on the same instance without affecting anyone else's data.
 
@@ -14,7 +14,7 @@ Built for people who need to see patterns in their own data when the medical sys
 
 ## What It Does
 
-Sardine-track helps you:
+Sardinetracker helps you:
 
 - Track daily symptoms, biometrics, and environmental factors (including UV exposure, in fact especially UV exposure)
 - Visualize correlations over time (does UV exposure predict your symptom flares? does low HRV precede bad days?)
@@ -22,7 +22,7 @@ Sardine-track helps you:
 - Keep a longitudinal record of labs, medications, & clinical events, as well a list of your clinicians
 - Run flare forecasting based on your own historical patterns — transparent scoring, not a black box, and tuned on your own n=1 data
 - Evaluate medical interventions (hydroxychloroquine, steroids, biologics, whatever): per-medication pre/post flare impact, autonomic shift, duration-of-effect for one-time doses, and structured logging of side effects, rebounds, and dose changes
-- Auto-sync biometrics from your phone: the **[sardinessync](https://github.com/alaricmoore/sardinessync)** iOS companion (Apple Health) or the **[sardinessync-android](https://github.com/alaricmoore/sardinessync-android)** Android companion (Health Connect — works with any wearable that writes to it: Fitbit, Garmin, Samsung, Oura, Pixel Watch, not just an Apple Watch). Steps, HRV/SDNN, RMSSD, resting heart rate, SpO2, respiratory rate, basal body temperature, time in daylight.
+- Auto-sync biometrics from your phone: the **[sardinessync](https://github.com/alaricmoore/sardinessync)** iOS companion (Apple Health) or the **[sardinesync-android](https://github.com/alaricmoore/sardinesync-android)** Android companion (Health Connect — works with any wearable that writes to it: Fitbit, Garmin, Samsung, Oura, Pixel Watch, not just an Apple Watch). Steps, HRV/SDNN, RMSSD, resting heart rate, SpO2, respiratory rate, basal body temperature, time in daylight.
 - Share a read-only, expiring view of your record with a clinician — one link, no account needed on their end, revocable any time
 - Keep all your data local — nothing leaves your computer, if you don't want it to.
 
@@ -76,27 +76,27 @@ If you see Python 3.9 or higher, you're good. If not, download from [python.org]
 
 **Windows:** Download Python from [python.org](https://python.org) and make sure to check "Add Python to PATH" during installation.
 
-### Step 2: Download sardine-track
+### Step 2: Download sardinetracker
 
 **Option A: Download ZIP (easiest if you're not familiar with git)**
 
 1. Go to the GitHub repository page
 2. Click the green **Code** button
 3. Click **Download ZIP**
-4. Unzip the file to a folder you can find (like `Documents/sardine-track`)
+4. Unzip the file to a folder you can find (like `Documents/sardinetracker`)
 
 **Option B: Clone with git**
 
 ```bash
-git clone https://github.com/alaricmoore/sardine-track.git
-cd sardine-track
+git clone https://github.com/alaricmoore/sardinetracker.git
+cd sardinetracker
 ```
 
-> The repo was formerly named `biotracking`; the old URL still redirects. If you want the iOS companion as well, the Swift sources live in a separate repo: [github.com/alaricmoore/sardinessync](https://github.com/alaricmoore/sardinessync).
+> The repo was formerly named `biotracking`, then `sardine-track`; the old URLs still redirect. If you want the iOS companion as well, the Swift sources live in a separate repo: [github.com/alaricmoore/sardinessync](https://github.com/alaricmoore/sardinessync).
 
 ### Step 3: Set Up the Application
 
-Open Terminal (Mac/Linux) or Command Prompt (Windows), navigate to the sardine-track folder, and run:
+Open Terminal (Mac/Linux) or Command Prompt (Windows), navigate to the sardinetracker folder, and run:
 
 ```bash
 # Create a virtual environment (recommended)
@@ -133,8 +133,8 @@ python app.py
 You should see:
 
 ```
-sardinetrack
-============
+sardinetracker
+==============
 Patient: Your Name
 Starting server...
 
@@ -142,7 +142,7 @@ Local:  http://localhost:5000
 Phone:  connect to same wifi, visit http://<your-ip>:5000
 ```
 
-> **A note on the name:** internally, the code still calls itself `biotracking` in a lot of places (module docstrings, the `biotracking.db` filename, some comments). That was the project's original name before it became `sardine-track`. It's left alone on purpose — renaming every occurrence is churn without benefit, and the database file in particular would break existing installs if renamed. User-facing surfaces (this banner, script output, `--help` text) say `sardinetrack`.
+> **A note on the name:** internally, the code still calls itself `biotracking` in a lot of places (module docstrings, the `biotracking.db` filename, some comments). That was the project's original name before it became `sardinetracker`. It's left alone on purpose — renaming every occurrence is churn without benefit, and the database file in particular would break existing installs if renamed. User-facing surfaces (this banner, script output, `--help` text) say `sardinetracker`.
 
 Open your browser and go to `http://localhost:5000`. Try adding today's entry to make sure everything works.
 
@@ -585,7 +585,7 @@ You're not in the virtual environment. Run `source .venv/bin/activate` (Mac/Linu
 
 **Your data lives in two files:**
 
-- `biotracking.db` — the SQLite database (kept at this filename deliberately; renaming it to `sardine-track.db` would break existing installs that have the file in place, and the name inside the SQLite file is invisible to users anyway. The .gitignore correctly excludes this file regardless.)
+- `biotracking.db` — the SQLite database (kept at this filename deliberately; renaming it to `sardinetracker.db` would break existing installs that have the file in place, and the name inside the SQLite file is invisible to users anyway. The .gitignore correctly excludes this file regardless.)
 - `config.json` — your settings and API keys
 
 **Back them up:**
@@ -652,7 +652,7 @@ Also reach out to me at <alaric.moore@pm.me>
 ### Project Structure
 
 ```
-sardine-track/
+sardinetracker/
 ├── app.py                      # Flask routes, scoring model, forecast lab, migrations hook
 ├── db.py                       # All database operations; idempotent run_migrations() at startup
 ├── uv_fetcher.py               # UV API integration (Open-Meteo + Visual Crossing)

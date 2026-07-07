@@ -212,7 +212,7 @@ def verify_migration(conn):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Migrate sardinetrack DB to multi-user")
+    parser = argparse.ArgumentParser(description="Migrate sardinetracker DB to multi-user")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would change without modifying the database")
     args = parser.parse_args()

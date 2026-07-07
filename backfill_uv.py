@@ -202,7 +202,7 @@ def run_backfill(user_id: int, dry_run: bool = False, force: bool = False) -> No
     ).days + 1
     estimated_records = num_days * 24
 
-    print(f"sardinetrack UV backfill")
+    print(f"sardinetracker UV backfill")
     print(f"========================")
     print(f"Dates needing UV:  {len(dates_needed)}")
     print(f"Date range:        {start_date} to {end_date}")

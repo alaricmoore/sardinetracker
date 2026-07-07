@@ -42,7 +42,7 @@ def load_existing_config() -> dict:
 
 def create_config():
     """Walk the user through creating their local config file."""
-    print("\n--- sardinetrack first-time setup ---")
+    print("\n--- sardinetracker first-time setup ---")
     print("This config file is gitignored and stays on your machine only.")
     print("Re-running setup will not erase existing values unless you change them.\n")
 
@@ -615,7 +615,7 @@ def verify_setup():
 
 
 def main():
-    print("sardinetrack setup")
+    print("sardinetracker setup")
     print("==================")
 
     # Check for existing setup

@@ -3,8 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sardine-track — a local-first tracker for autoimmune disease</title>
+<title>sardinetracker — a local-first tracker for autoimmune disease</title>
 <meta name="description" content="Open-source, self-hosted health tracking for systemic autoimmune rheumatic disease: daily symptoms, wearables, labs, and a transparent flare-forecast model. Your data stays in one SQLite file on your own machine.">
+<link rel="canonical" href="https://sardinetracker.com/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://sardinetracker.com/">
+<meta property="og:site_name" content="sardinetracker">
+<meta property="og:title" content="sardinetracker — a local-first tracker for autoimmune disease">
+<meta property="og:description" content="Open-source, self-hosted health tracking for systemic autoimmune rheumatic disease: daily symptoms, wearables, labs, and a transparent flare-forecast model. Your data stays in one SQLite file on your own machine.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="sardinetracker — a local-first tracker for autoimmune disease">
+<meta name="twitter:description" content="Open-source, self-hosted health tracking for systemic autoimmune rheumatic disease: daily symptoms, wearables, labs, and a transparent flare-forecast model.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=IBM+Plex+Mono:wght@300;400&display=swap" rel="stylesheet">
@@ -85,12 +94,12 @@
 
 <header>
   <div class="wrap nav">
-    <div class="wordmark">sardine<span>track</span></div>
+    <div class="wordmark">sardine<span>tracker</span></div>
     <ul>
       <li><a href="#what">what it does</a></li>
       <li><a href="#data">your data</a></li>
       <li><a href="#install">install</a></li>
-      <li><a href="https://github.com/alaricmoore/sardine-track">github &#8599;</a></li>
+      <li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li>
     </ul>
   </div>
 </header>
@@ -99,7 +108,7 @@
   <div class="wrap hero">
     <p class="eyebrow">open-source &#183; local-first &#183; AGPL-3.0</p>
     <h1>Keep the receipts on your own disease.</h1>
-    <p class="lede">sardine-track is a self-hosted tracker for systemic autoimmune rheumatic
+    <p class="lede">sardinetracker is a self-hosted tracker for systemic autoimmune rheumatic
       disease: daily symptoms, biometrics, UV exposure, labs, medications, and a transparent
       flare-forecast model. Everything lives in one SQLite file on your own machine.
       Nothing phones home.</p>
@@ -107,7 +116,7 @@
       who has one. Built by a patient who needed her patterns to be visible &#8212; released
       for the other sardines.)</p>
     <div class="cta-row">
-      <a class="btn primary" href="https://github.com/alaricmoore/sardine-track">Get the code</a>
+      <a class="btn primary" href="https://github.com/alaricmoore/sardinetracker">Get the code</a>
       <a class="btn" href="#install">Install in ten minutes</a>
     </div>
 
@@ -190,15 +199,18 @@
       <p class="kicker">ten minutes, honestly</p>
       <h2>Install</h2>
       <p>You need Python 3.9 or newer and a web browser. macOS, Linux, or Windows.</p>
-      <pre><code>git clone https://github.com/alaricmoore/sardine-track.git
-cd sardine-track
+      <pre><code>git clone https://github.com/alaricmoore/sardinetracker.git
+cd sardinetracker
 python3 -m venv .venv &amp;&amp; source .venv/bin/activate
 pip install -r requirements.txt
 python setup.py   <span class="c"># asks your name, coordinates, timezone</span>
 python app.py     <span class="c"># &#8594; http://localhost:5000</span></code></pre>
       <p class="req">Full walkthrough &#8212; Windows steps, phone access, Apple Health import,
          spreadsheet import &#8212; in the
-         <a href="https://github.com/alaricmoore/sardine-track#installation">README</a>.</p>
+         <a href="https://github.com/alaricmoore/sardinetracker#installation">README</a>.</p>
+      <p class="req">On Android? The companion app ships as a ready-to-install APK &#8212; grab it
+         from the <a href="https://github.com/alaricmoore/sardinesync-android/releases">releases
+         page</a>, no build tools needed. It syncs any wearable that writes to Health Connect.</p>
     </div>
   </section>
 </main>
@@ -206,11 +218,11 @@ python app.py     <span class="c"># &#8594; http://localhost:5000</span></code><
 <footer>
   <div class="wrap">
     <div class="links">
-      <a href="https://github.com/alaricmoore/sardine-track">sardine-track &#8599;</a>
-      <a href="https://github.com/alaricmoore/sardinessync-android">Android companion &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker">sardinetracker &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinesync-android">Android companion &#8599;</a>
       <a href="https://github.com/alaricmoore/sardinessync">iOS companion &#8599;</a>
-      <a href="https://github.com/alaricmoore/sardine-track/blob/main/MODEL.md">how the model works &#8599;</a>
-      <a href="https://github.com/alaricmoore/sardine-track/blob/main/LICENSE">AGPL-3.0 &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/MODEL.md">how the model works &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/LICENSE">AGPL-3.0 &#8599;</a>
     </div>
     <p>A one-person project, built between doctor appointments, machine repair, and terrariums.
        Not medical advice; always consult qualified clinicians. Trust your observations.

@@ -22,6 +22,13 @@ Raspberry Pi remote access support via Tailscale
 
 > **Note:** I forgot this file existed for over a month. Entries from 2.2.0 onward were reconstructed from git history on 2026-04-26, so dates reflect when work landed but groupings are post-hoc.
 
+[2.7.0] — 2026-07-07
+Name Standardization
+- Renamed the GitHub repo sardine-track → sardinetracker, matching sardinetracker.com (old URLs redirect)
+- Standardized every user-facing surface on `sardinetracker` (was a mix of sardine-track, sardinetrack, and sardinetracking across README, app wordmark, script output, and docs)
+- Fixed broken Android companion links: the repo is sardinesync-android, not sardinessync-android
+- Added OpenGraph/Twitter meta tags and canonical URL to the landing page so shared links unfurl properly
+
 [2.6.0] — 2026-04-26
 Public Release Prep
 - Split narrative content out of README into WHY.md (README had gotten unwieldy)

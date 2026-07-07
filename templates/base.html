@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{% block title %}sardinetrack{% endblock %}</title>
+    <title>{% block title %}sardinetracker{% endblock %}</title>
 
     <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
@@ -817,7 +817,7 @@
 
     <header class="app-header">
         <div class="header-inner">
-            <div class="app-wordmark">sardine<span>track</span></div>
+            <div class="app-wordmark">sardine<span>tracker</span></div>
             <nav>
                 <ul class="nav-links">
                     <li><a href="{{ url_for('daily_entry') }}"

@@ -98,7 +98,7 @@ def run_import(csv_path: str, user_id: int = 1, dry_run: bool = False,
         print(f"ERROR: file not found: {csv_path}")
         sys.exit(1)
 
-    print(f"sardinetrack lab import")
+    print(f"sardinetracker lab import")
     print(f"=======================")
     print(f"File:     {csv_path}")
     print(f"User ID:  {user_id}")

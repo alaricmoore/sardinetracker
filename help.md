@@ -175,7 +175,7 @@ Setup instructions are in your account profile.
 
 ## Auto-Sync from Apple Health
 
-If you have an Apple Watch, you can have your iPhone send biometric data to sardine-track automatically — no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature.
+If you have an Apple Watch, you can have your iPhone send biometric data to sardinetracker automatically — no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature.
 
 There are two ways to set this up. The **native iOS app** is more capable but requires you to build it yourself in Xcode. The **iOS Shortcut** approach is simpler but limited.
 
@@ -186,7 +186,7 @@ There are two ways to set this up. The **native iOS app** is more capable but re
 - Reads everything HealthKit offers, including the things Shortcuts can't reach (RR intervals for overnight RMSSD, Time in Daylight, respiratory rate)
 - Computes RMSSD from raw heartbeat intervals on your phone (better accuracy than Apple's built-in HRV number)
 - Handles background sync automatically — no manual triggering
-- Gives you a tab with mobile-friendly sardine-track pages and local push notifications for flare alerts / medication doses
+- Gives you a tab with mobile-friendly sardinetracker pages and local push notifications for flare alerts / medication doses
 
 It's not in the App Store (not paying Apple $99/yr for a hobby project's listing). You clone the repo, open it in Xcode, plug your iPhone in, and build. With a free personal Apple ID the app expires every 7 days and needs a re-install — about 2 minutes if you leave Xcode configured. If you pay Apple the $99/yr, it lasts a year between rebuilds.
 

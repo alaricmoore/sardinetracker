@@ -1,8 +1,8 @@
-# Remote Access Guide — sardinetracking
+# Remote Access Guide — sardinetracker
 
 ## Read This First
 
-This document describes how to access sardinetracking from outside your local network - from your phone on cellular, from work, from anywhere.
+This document describes how to access sardinetracker from outside your local network - from your phone on cellular, from work, from anywhere.
 
 Before you do any of this, understand what you are doing:
 
@@ -64,7 +64,7 @@ biotracking app + SQLite database
 
 Your database never leaves the Raspberry Pi. The Oracle VM sees only encrypted Tailscale traffic - it cannot read the contents. Your phone connects to the Oracle VM's public IP, which forwards traffic through the Tailscale mesh to the Pi.
 
-### Step 1: Set up sardinetracking on your Raspberry Pi
+### Step 1: Set up sardinetracker on your Raspberry Pi
 
 Follow the standard installation instructions in the README. Verify it runs on `http://localhost:5000` from the Pi itself before touching any networking. If you don't have a keyboard or screen, install faceless debian onto the pi and ssh into it. You don't need a UI for any of this.
 

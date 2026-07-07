@@ -25,7 +25,7 @@ def hash_password(password: str) -> str:
 
 
 def create():
-    parser = argparse.ArgumentParser(description="Create a sardinetrack user account")
+    parser = argparse.ArgumentParser(description="Create a sardinetracker user account")
     parser.add_argument("--admin", action="store_true", help="Grant admin privileges")
     parser.add_argument("--list", action="store_true", help="List existing users and exit")
     args = parser.parse_args()
@@ -45,7 +45,7 @@ def create():
                 print(f"{u['id']:<4} {u['username']:<16} {u['display_name']:<24} {admin_str:<6} {u['created_at']}")
         return
 
-    print("\n--- Create sardinetrack user account ---\n")
+    print("\n--- Create sardinetracker user account ---\n")
 
     username = input("Username (lowercase, no spaces): ").strip().lower()
     if not username or ' ' in username:
@@ -76,7 +76,7 @@ def create():
 
     role = "admin " if args.admin else ""
     print(f"\nCreated {role}user '{username}' (id={user_id}, display='{display_name}')")
-    print("They can now log in at the sardinetrack app.")
+    print("They can now log in at the sardinetracker app.")
 
 
 if __name__ == "__main__":
