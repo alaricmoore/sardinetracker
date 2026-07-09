@@ -489,19 +489,13 @@ def create_database():
         )
     """)
 
-    # --------------------------------------------------------
-    # FTS5 virtual table for keyword search across note fields
-    # --------------------------------------------------------
-    c.execute("""
-        CREATE VIRTUAL TABLE IF NOT EXISTS notes_search
-        USING fts5(
-            date,
-            source_table,
-            notes_text,
-            content=''
-        )
-    """)
-    
+    # (An FTS5 notes_search virtual table used to be created here, but nothing
+    # ever queried it — db.search_notes() uses LIKE. Removed 2026-07-09: some
+    # SQLite builds (e.g. the Android-embedded one) ship without FTS5, and the
+    # unused table was the only thing that failed on them. Existing databases
+    # keep their empty notes_search table harmlessly.)
+
+
     # --------------------------------------------------------
     # Clinician information
     # --------------------------------------------------------
