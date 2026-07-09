@@ -211,6 +211,24 @@ def run_migrations() -> int:
                       "ON portal_access_log(link_id, accessed_at)")
             applied += 1
 
+        # ---- pending_notifications (added 2026-07-09 for embedded mode) ----
+        # When SARDINE_NOTIFY_QUEUE is set, the ntfy senders queue here instead
+        # of pushing; the host platform (the Android app) drains the queue and
+        # delivers native notifications.
+        if _table_missing(c, "pending_notifications"):
+            c.execute("""
+                CREATE TABLE pending_notifications (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    title      TEXT NOT NULL,
+                    message    TEXT NOT NULL,
+                    priority   TEXT NOT NULL DEFAULT 'default',
+                    tags       TEXT NOT NULL DEFAULT '',
+                    consumed   INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+            applied += 1
+
     return applied
 
 
@@ -348,21 +366,68 @@ def get_user_preference(user_id: int, key: str, default=None):
 
 
 def get_users_with_ntfy() -> list[dict]:
-    """Return all users who have ntfy_topic configured in their preferences.
-    Includes user_id, ntfy_topic, ntfy_server, and location fields.
+    """Return all users the notification checks should consider.
+
+    Classic mode: users who have ntfy_topic configured (push is the only
+    delivery path, so anyone without a topic can't be notified anyway).
+    Queue mode (SARDINE_NOTIFY_QUEUE, embedded platforms): every user — the
+    host OS delivers notifications natively, no topic needed. LEFT JOIN so a
+    user who has never touched preferences still gets reminders.
     """
+    queue_mode = bool(os.environ.get("SARDINE_NOTIFY_QUEUE"))
+    where = "" if queue_mode else \
+        "WHERE p.ntfy_topic IS NOT NULL AND p.ntfy_topic != ''"
+    join = "LEFT JOIN" if queue_mode else "JOIN"
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT u.id AS user_id, u.username, u.display_name,
                    p.ntfy_topic, p.ntfy_server, p.location_lat, p.location_lon,
                    p.timezone, p.last_flare_alert_date, p.last_uv_alert_date,
                    p.reminder_hours, p.last_logged_at, p.last_reminder_date,
                    p.last_period_nudge_date, p.track_cycle
             FROM users u
-            JOIN user_preferences p ON u.id = p.user_id
-            WHERE p.ntfy_topic IS NOT NULL AND p.ntfy_topic != ''
+            {join} user_preferences p ON u.id = p.user_id
+            {where}
         """).fetchall()
         return [dict(r) for r in rows]
+
+
+def queue_notification(title: str, message: str, priority: str = "default",
+                       tags: str = "") -> int:
+    """Queue a notification for the embedded host platform to deliver."""
+    with get_db() as conn:
+        c = conn.execute(
+            "INSERT INTO pending_notifications (title, message, priority, tags) "
+            "VALUES (?, ?, ?, ?)",
+            (title, message, priority, tags),
+        )
+        return c.lastrowid
+
+
+def drain_notifications() -> list[dict]:
+    """Return all unconsumed queued notifications and mark them consumed."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM pending_notifications WHERE consumed = 0 ORDER BY id"
+        ).fetchall()
+        if rows:
+            conn.execute(
+                "UPDATE pending_notifications SET consumed = 1 WHERE consumed = 0"
+            )
+        return [dict(r) for r in rows]
+
+
+def get_next_pending_dose_time(after: str) -> Optional[str]:
+    """Earliest scheduled_datetime of an un-notified, un-taken dose at or
+    after [after] ('YYYY-MM-DD HH:MM'). Lets the embedded host arm an exact
+    alarm for the next medication reminder."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT MIN(scheduled_datetime) AS t FROM scheduled_doses "
+            "WHERE notified = 0 AND taken = 0 AND scheduled_datetime >= ?",
+            (after,),
+        ).fetchone()
+        return row["t"] if row and row["t"] else None
 
 
 def get_distinct_user_locations() -> list[dict]:

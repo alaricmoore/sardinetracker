@@ -495,6 +495,22 @@ def create_database():
     # unused table was the only thing that failed on them. Existing databases
     # keep their empty notes_search table harmlessly.)
 
+    # --------------------------------------------------------
+    # Queued notifications for embedded mode (SARDINE_NOTIFY_QUEUE):
+    # the host platform drains these and delivers them natively.
+    # --------------------------------------------------------
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS pending_notifications (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            title      TEXT NOT NULL,
+            message    TEXT NOT NULL,
+            priority   TEXT NOT NULL DEFAULT 'default',
+            tags       TEXT NOT NULL DEFAULT '',
+            consumed   INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+
 
     # --------------------------------------------------------
     # Clinician information

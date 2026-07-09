@@ -951,8 +951,17 @@ def uid() -> int:
 # Medication reminder notifications (ntfy)
 # ============================================================
 
+# Embedded platforms (the Android local app) set SARDINE_NOTIFY_QUEUE: instead
+# of pushing via ntfy, notifications are queued in the database and the host OS
+# drains + delivers them natively (see db.queue_notification / drain).
+_NOTIFY_QUEUE = bool(os.environ.get("SARDINE_NOTIFY_QUEUE"))
+
+
 def _send_ntfy(message: str) -> None:
     """Send a push notification via ntfy.sh (or self-hosted ntfy server)."""
+    if _NOTIFY_QUEUE:
+        db.queue_notification("Medication Reminder", message, "high", "pill")
+        return
     import requests as _requests
     topic = CONFIG.get("ntfy_topic")
     server = CONFIG.get("ntfy_server", "https://ntfy.sh")
@@ -975,6 +984,9 @@ def _send_ntfy(message: str) -> None:
 
 def _send_ntfy_to(server: str, topic: str, message: str) -> None:
     """Send a push notification to a specific ntfy server/topic."""
+    if _NOTIFY_QUEUE:
+        db.queue_notification("Medication Reminder", message, "high", "pill")
+        return
     import requests as _requests
     try:
         _requests.post(
@@ -997,6 +1009,9 @@ def _send_ntfy_alert(message: str, title: str, priority: str = "default",
     """Send a push notification with custom title, priority, and tags.
     If server/topic not provided, falls back to global CONFIG.
     """
+    if _NOTIFY_QUEUE:
+        db.queue_notification(title, message, priority, tags)
+        return
     import requests as _requests
     topic = topic or CONFIG.get("ntfy_topic")
     server = server or CONFIG.get("ntfy_server", "https://ntfy.sh")
@@ -1154,20 +1169,27 @@ def _check_uv_fetch() -> None:
             print(f"[uv-alert] state save failed for user {user['user_id']}: {e}")
 
 
-def _check_and_send_reminders() -> None:
-    """Background job: send ntfy notifications for doses due in the next minute."""
+def _check_and_send_reminders(lookback_minutes: int = 0) -> None:
+    """Background job: send ntfy notifications for doses due in the next minute.
+
+    [lookback_minutes] widens the window into the past — the classic scheduler
+    runs every minute so 0 is right; embedded hosts poll less often and pass a
+    lookback so doses due between wakeups still notify (a late reminder beats
+    a missing one). The notified flag keeps repeats out either way.
+    """
     now = datetime.now()
+    window_start = now - timedelta(minutes=lookback_minutes)
     window_end = now + timedelta(minutes=1)
     try:
         pending = db.get_all_pending_doses_with_ntfy(
-            now.strftime("%Y-%m-%d %H:%M"),
+            window_start.strftime("%Y-%m-%d %H:%M"),
             window_end.strftime("%Y-%m-%d %H:%M"),
         )
         for dose in pending:
             # Send to user's own ntfy topic
             topic = dose.get("ntfy_topic")
             server = dose.get("ntfy_server") or "https://ntfy.sh"
-            if topic:
+            if topic or _NOTIFY_QUEUE:
                 _send_ntfy_to(server, topic, dose["dose_label"])
             db.mark_dose_notified(dose["id"])
     except Exception as e:
