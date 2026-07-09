@@ -8,13 +8,16 @@ All dates are stored and accepted as strings in YYYY-MM-DD format.
 """
 
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime
 from typing import Optional
 
 
-DB_FILE = "biotracking.db"
+# Relative to the working directory in the classic self-hosted layout;
+# embedded platforms set SARDINE_DATA_DIR to app-private storage instead.
+DB_FILE = os.path.join(os.environ.get("SARDINE_DATA_DIR", ""), "biotracking.db")
 
 
 # ============================================================
@@ -231,6 +234,17 @@ def get_user_by_username(username: str) -> Optional[dict]:
             "SELECT * FROM users WHERE username = ?", (username,)
         ).fetchone()
         return dict(row) if row else None
+
+
+def get_sole_user() -> Optional[dict]:
+    """The one and only user — or None if there are zero or several.
+
+    Used by single_user_mode auto-login, which must never guess between
+    accounts on a server that turns out to be multi-user.
+    """
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM users LIMIT 2").fetchall()
+        return dict(rows[0]) if len(rows) == 1 else None
 
 
 def create_user(username: str, display_name: str, password_hash: str,

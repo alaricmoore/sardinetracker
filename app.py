@@ -50,6 +50,12 @@ if _migrations_applied:
 import os
 import json
 
+# All writable state (config.json, the database, custom weights, uploaded
+# documents) lives under DATA_DIR. Defaults to the repo directory — the
+# classic self-hosted layout. Embedded platforms (the Android local app)
+# set SARDINE_DATA_DIR to app-private storage before importing this module.
+DATA_DIR = os.environ.get("SARDINE_DATA_DIR", os.path.dirname(__file__))
+
 # ============================================================
 # LAB ADJUSTMENTS
 # ============================================================
@@ -358,7 +364,7 @@ def symptom_points(symptom, obs, baseline_weight):
 
 
 # Path to custom weights config
-CUSTOM_WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), 'config', 'custom_weights.json')
+CUSTOM_WEIGHTS_PATH = os.path.join(DATA_DIR, 'config', 'custom_weights.json')
 
 def get_current_weights(user_id=None):
     """
@@ -780,7 +786,7 @@ Press any key to return to main menu
 
 def load_config() -> dict:
     """Load local config. Exits cleanly if setup hasn't been run."""
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    config_path = os.path.join(DATA_DIR, "config.json")
     if not os.path.exists(config_path):
         print("ERROR: config.json not found. Run setup.py first.")
         raise SystemExit(1)
@@ -902,6 +908,14 @@ def require_login():
     if request.endpoint in ('login', 'register', 'static', 'favicon_files', 'api_health_sync', 'api_flare_status', 'api_uv_ingest', 'portal_view', 'portal_section', 'portal_document'):
         return
     if not current_user.is_authenticated:
+        # Single-user mode (a server that belongs to exactly one person, e.g.
+        # the phone-local app): sign in as the sole account automatically.
+        # Deliberately refuses to guess when more than one account exists.
+        if CONFIG.get("single_user_mode"):
+            sole = db.get_sole_user()
+            if sole:
+                login_user(User(sole), remember=True)
+                return
         return redirect(url_for('login'))
 
 
@@ -1306,7 +1320,12 @@ _is_reloader_parent = (
     CONFIG.get("debug", False) and os.environ.get("WERKZEUG_RUN_MAIN") != "true"
 )
 
-if not _is_reloader_parent:
+# Embedded mode (the Android local app): the host platform owns scheduling
+# (WorkManager/AlarmManager) because the OS kills background processes —
+# an in-process scheduler would silently never fire.
+_embedded = bool(os.environ.get("SARDINE_EMBEDDED"))
+
+if not _is_reloader_parent and not _embedded:
     _tz = CONFIG.get("timezone", "UTC")
     _scheduler = BackgroundScheduler(timezone=_tz)
     _scheduler.add_job(_check_and_send_reminders, "interval", minutes=1,
@@ -3724,7 +3743,7 @@ def import_labs_commit():
 # ============================================================
 # Clinical document library (uploaded PDFs, stored on disk)
 # ============================================================
-DOCUMENTS_DIR = os.path.join(os.path.dirname(__file__), "documents")
+DOCUMENTS_DIR = os.path.join(DATA_DIR, "documents")
 
 
 def _user_docs_dir(user_id: int) -> str:

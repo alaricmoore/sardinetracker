@@ -30,8 +30,10 @@ import requests
 # ============================================================
 
 def load_config() -> dict:
-    """Load location config from config.json."""
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    """Load location config from config.json (from SARDINE_DATA_DIR when set —
+    see DATA_DIR in app.py)."""
+    config_dir = os.environ.get("SARDINE_DATA_DIR", os.path.dirname(__file__))
+    config_path = os.path.join(config_dir, "config.json")
     if not os.path.exists(config_path):
         raise FileNotFoundError(
             "config.json not found. Run setup.py first."
