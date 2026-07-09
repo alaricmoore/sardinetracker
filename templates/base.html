@@ -951,6 +951,13 @@
             <span>sync</span>
         </a>
         {% endif %}
+        {% if 'HealthSyncAndroid' in request.headers.get('User-Agent', '') %}
+        <a href="/android/sync-healthconnect"
+           class="mobile-nav-item">
+            <span class="mobile-nav-icon">&#x21bb;</span>
+            <span>sync</span>
+        </a>
+        {% endif %}
         <div class="mobile-nav-item {% if request.endpoint in ('hrv_view', 'uv_lag', 'wearable', 'cycle_view', 'search', 'help_page', 'settings', 'clinical_report') %}active{% endif %}"
              id="mobileMoreBtn" style="cursor:pointer; position:relative;">
             <span class="mobile-nav-icon">...</span>
@@ -968,6 +975,9 @@
                 <a href="{{ url_for('clinical_report') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">report</a>
                 <a href="{{ url_for('search') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">search</a>
                 <a href="{{ url_for('help_page') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">help</a>
+                {% if 'HealthSyncAndroid' in request.headers.get('User-Agent', '') %}
+                <a href="/android/backfill-healthconnect" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">import history</a>
+                {% endif %}
                 {% if current_user.is_authenticated %}
                 <a href="{{ url_for('settings') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">settings</a>
                 <a href="{{ url_for('logout') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-muted); text-decoration:none; font-size:0.85rem;">logout</a>
