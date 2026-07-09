@@ -6401,33 +6401,189 @@ def search():
 # Data Management & Export
 # ============================================================
 
+def _build_backup_zip(user_id: int):
+    """Assemble the full-backup zip: raw database, CSVs of every user-scoped
+    table, and — in single_user_mode only, where user == server owner —
+    config.json and custom weights. Uploaded documents come along either way
+    (scoped to the requesting user)."""
+    from io import BytesIO
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Checkpoint the WAL first or the copied .db file silently misses
+        # everything written since the last checkpoint.
+        with db.get_db() as conn:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+        if os.path.exists(db.DB_FILE):
+            zipf.write(db.DB_FILE, "biotracking.db")
+
+        _export_csvs_to_zip(zipf, user_id)
+
+        # Server-owner files: only when this server belongs to exactly the
+        # requesting user (the phone-local app). On a multi-user server,
+        # config.json holds secrets that aren't any one user's to export.
+        if CONFIG.get("single_user_mode"):
+            config_path = os.path.join(DATA_DIR, "config.json")
+            if os.path.exists(config_path):
+                zipf.write(config_path, "config.json")
+            if os.path.exists(CUSTOM_WEIGHTS_PATH):
+                zipf.write(CUSTOM_WEIGHTS_PATH, "config/custom_weights.json")
+
+        docs_dir = os.path.join(DOCUMENTS_DIR, f"user_{user_id}")
+        if os.path.isdir(docs_dir):
+            for root, _dirs, files in os.walk(docs_dir):
+                for fname in files:
+                    full = os.path.join(root, fname)
+                    rel = os.path.relpath(full, DOCUMENTS_DIR)
+                    zipf.write(full, os.path.join("documents", rel))
+
+    zip_buffer.seek(0)
+    return zip_buffer
+
+
 @app.route("/export/all-data")
 def export_all_data():
     """Export complete database and all data as ZIP file."""
-    from io import BytesIO
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    zip_buffer = BytesIO()
-
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # 1. Include SQLite database
-        db_path = Path("biotracking.db")
-        if db_path.exists():
-            zipf.write(str(db_path), "biotracking.db")
-
-        # 2. Export all tables as CSV into the ZIP
-        _export_csvs_to_zip(zipf)
-
-    zip_buffer.seek(0)
     return send_file(
-        zip_buffer,
+        _build_backup_zip(uid()),
         mimetype='application/zip',
         as_attachment=True,
         download_name=f'biotracking_backup_{timestamp}.zip'
     )
 
 
-def _export_csvs_to_zip(zipf):
+@app.route("/api/backup/export")
+@csrf.exempt
+def api_backup_export():
+    """Token-authenticated backup export (no session), for programmatic hosts
+    like the Android local app. Auth mirrors /api/health-sync."""
+    token = CONFIG.get("api_token")
+    if not token:
+        return jsonify({"error": "api_token not configured"}), 500
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != token:
+        return jsonify({"error": "unauthorized"}), 401
+
+    user_id = request.args.get("user_id", type=int)
+    if user_id is None:
+        sole = db.get_sole_user()
+        if not sole:
+            return jsonify({"error": "user_id required on multi-user servers"}), 400
+        user_id = sole["id"]
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return send_file(
+        _build_backup_zip(user_id),
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'biotracking_backup_{timestamp}.zip'
+    )
+
+
+@app.route("/api/backup/restore", methods=["POST"])
+@csrf.exempt
+def api_backup_restore():
+    """Full-replace restore from a backup zip. Deliberately refuses to run on
+    multi-user servers — replacing the shared database is not any one user's
+    call; use import_backup.py there. Auth mirrors /api/health-sync.
+
+    config.json from the backup is merged, not swapped: the running install
+    keeps its own secret_key / api_token / single_user_mode (swapping those
+    live would break the session and the sync bridge), takes the rest, and
+    the merged values apply on next restart (CONFIG is read at startup).
+    """
+    token = CONFIG.get("api_token")
+    if not token:
+        return jsonify({"error": "api_token not configured"}), 500
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or auth[7:] != token:
+        return jsonify({"error": "unauthorized"}), 401
+    if not CONFIG.get("single_user_mode"):
+        return jsonify({"error": "restore only runs on single-user servers"}), 403
+
+    from io import BytesIO
+    if "backup" in request.files:
+        payload = request.files["backup"].read()
+    else:
+        payload = request.get_data()
+    try:
+        zf = zipfile.ZipFile(BytesIO(payload))
+    except zipfile.BadZipFile:
+        return jsonify({"error": "not a zip file"}), 400
+    if "biotracking.db" not in zf.namelist():
+        return jsonify({"error": "backup contains no biotracking.db"}), 400
+
+    import sqlite3 as _sqlite3
+    tmp_path = os.path.join(DATA_DIR, ".restore_incoming.db")
+    with open(tmp_path, "wb") as f:
+        f.write(zf.read("biotracking.db"))
+    try:
+        src = _sqlite3.connect(tmp_path)
+        try:
+            src.execute("SELECT COUNT(*) FROM users").fetchone()
+        except _sqlite3.DatabaseError:
+            return jsonify({"error": "backup database is invalid or corrupt"}), 400
+
+        # Online replace: SQLite's backup API takes proper locks, so the
+        # running server's other connections stay consistent throughout.
+        dest = _sqlite3.connect(db.DB_FILE)
+        with dest:
+            src.backup(dest)
+        dest.close()
+        src.close()
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    # The backup may predate the current schema.
+    migrations = db.run_migrations()
+
+    restored_files = 0
+    for name in zf.namelist():
+        target = None
+        if name == "config/custom_weights.json":
+            target = CUSTOM_WEIGHTS_PATH
+        elif name.startswith("documents/"):
+            target = os.path.join(DATA_DIR, name)
+        if not target:
+            continue
+        # Refuse anything that escapes DATA_DIR (zip path traversal)
+        real = os.path.realpath(target)
+        if not real.startswith(os.path.realpath(DATA_DIR) + os.sep):
+            continue
+        os.makedirs(os.path.dirname(real), exist_ok=True)
+        with open(real, "wb") as f:
+            f.write(zf.read(name))
+        restored_files += 1
+
+    merged_config = False
+    if "config.json" in zf.namelist():
+        try:
+            incoming = json.loads(zf.read("config.json"))
+            config_path = os.path.join(DATA_DIR, "config.json")
+            with open(config_path) as f:
+                current = json.load(f)
+            for key in ("secret_key", "api_token", "single_user_mode"):
+                incoming[key] = current.get(key)
+            with open(config_path, "w") as f:
+                json.dump(incoming, f, indent=2)
+            merged_config = True
+        except (ValueError, OSError) as e:
+            print(f"[restore] config merge skipped: {e}")
+
+    return jsonify({
+        "ok": True,
+        "migrations_applied": migrations,
+        "aux_files_restored": restored_files,
+        "config_merged": merged_config,
+    })
+
+
+def _export_csvs_to_zip(zipf, user_id):
     """Export all database tables as CSV strings into a ZipFile."""
 
     def make_csv(data: list, columns: list) -> str:
@@ -6439,7 +6595,7 @@ def _export_csvs_to_zip(zipf):
         return output.getvalue()
 
     # Daily observations — all columns
-    daily_obs = db.get_all_observations(uid())
+    daily_obs = db.get_all_observations(user_id)
     zipf.writestr("daily_observations.csv", make_csv(daily_obs, [
         'date', 'steps', 'hours_slept', 'hrv', 'hrv_rmssd',
         'resting_heart_rate', 'spo2', 'respiratory_rate',
@@ -6458,31 +6614,31 @@ def _export_csvs_to_zip(zipf):
     ]))
 
     # Labs
-    zipf.writestr("labs.csv", make_csv(db.get_lab_results(uid()), [
+    zipf.writestr("labs.csv", make_csv(db.get_lab_results(user_id), [
         'date', 'test_name', 'numeric_value', 'unit', 'qualitative_result',
         'reference_range', 'flag', 'provider', 'lab_facility', 'notes'
     ]))
 
     # Medications
-    zipf.writestr("medications.csv", make_csv(db.get_all_medications(uid()), [
+    zipf.writestr("medications.csv", make_csv(db.get_all_medications(user_id), [
         'drug_name', 'dose', 'unit', 'frequency', 'route', 'category',
         'indication', 'start_date', 'end_date', 'is_primary_intervention',
         'is_secondary_intervention', 'notes'
     ]))
 
     # Events
-    zipf.writestr("events.csv", make_csv(db.get_clinical_events(uid()), [
+    zipf.writestr("events.csv", make_csv(db.get_clinical_events(user_id), [
         'date', 'event_type', 'provider', 'facility', 'follow_up_date', 'notes'
     ]))
 
     # Clinicians
-    zipf.writestr("clinicians.csv", make_csv(db.get_all_clinicians(uid()), [
+    zipf.writestr("clinicians.csv", make_csv(db.get_all_clinicians(user_id), [
         'name', 'specialty', 'clinic_name', 'phone', 'email', 'network',
         'address', 'notes'
     ]))
 
     # ANA results
-    zipf.writestr("ana_results.csv", make_csv(db.get_ana_results(uid()), [
+    zipf.writestr("ana_results.csv", make_csv(db.get_ana_results(user_id), [
         'date', 'titer', 'screen_result', 'patterns', 'provider', 'notes'
     ]))
 
@@ -6499,7 +6655,7 @@ def _export_csvs_to_zip(zipf):
         ("health_sync_events", "health_sync_events.csv"),
         ("user_preferences",   "user_preferences.csv"),
     ]:
-        dump = db.export_table_for_user(table, uid())
+        dump = db.export_table_for_user(table, user_id)
         zipf.writestr(filename, make_csv(dump["rows"], dump["columns"]))
 
 # ============================================================
