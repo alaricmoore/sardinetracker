@@ -6711,11 +6711,11 @@ def generate_findings(observations, uv_data, start_date, end_date, n_obs=None, u
         if flare_n > 0:
             findings.append({
                 'type': 'flare_frequency',
-                'text': f'{flare_n} flare{"s" if flare_n != 1 else ""} recorded in this period '
+                'text': f'{flare_n} high-burden day{"s" if flare_n != 1 else ""} recorded in this period '
                         f'({per_month}/month over {period_days} days).'
             })
         else:
-            findings.append({'type': 'flare_frequency', 'text': 'No flares recorded in this period.'})
+            findings.append({'type': 'flare_frequency', 'text': 'No high-burden days recorded in this period.'})
 
     # Highest-burden symptom category
     if observations and n_obs:
@@ -6745,8 +6745,7 @@ def generate_findings(observations, uv_data, start_date, end_date, n_obs=None, u
         if neuro_pct >= 10:
             findings.append({
                 'type': 'neurological',
-                'text': f'Neurological symptoms present on {neuro_n} of {n_obs} days ({neuro_pct}%). '
-                        f'This may warrant neurology consultation or expanded ANA panel.'
+                'text': f'Neurological symptoms present on {neuro_n} of {n_obs} days ({neuro_pct}%).'
             })
 
     # Medications started during this period

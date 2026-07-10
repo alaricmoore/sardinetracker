@@ -5,7 +5,7 @@
     <h2>Snapshot <span style="font-family:var(--font-mono); font-weight:400; color:var(--text-muted); font-size:0.8rem;">last 90 days · {{ period.start }} to {{ period.end }}</span></h2>
     <div class="stats">
       <div class="stat"><div class="k">Days logged</div><div class="v">{{ period.obs_days }}</div></div>
-      <div class="stat"><div class="k">Flare days</div><div class="v" style="color:var(--color-danger);">{{ period.flare_days }}</div></div>
+      <div class="stat"><div class="k">High-burden days</div><div class="v" style="color:var(--color-danger);">{{ period.flare_days }}</div></div>
       <div class="stat"><div class="k">Mean pain</div><div class="v">{{ period.mean_pain if period.mean_pain is not none else '—' }}</div></div>
       <div class="stat"><div class="k">Mean fatigue</div><div class="v">{{ period.mean_fatigue if period.mean_fatigue is not none else '—' }}</div></div>
     </div>
@@ -31,7 +31,11 @@
   </section>
 
   <section class="report-section">
-    <h2>Flares in this period</h2>
+    <h2>High-burden days in this period</h2>
+    <p class="section-note">A high-burden day is one the patient marked as a
+       symptom flare — a stretch of disease activity, mild to major, whose
+       symptoms attribute to functional decline or limitation. Severity is
+       the patient's own rating.</p>
     {% if flares %}
     <div class="scroll"><table class="data-table">
       <thead><tr><th>date</th><th>severity</th><th style="text-align:right;">pain</th><th style="text-align:right;">fatigue</th></tr></thead>
@@ -46,6 +50,6 @@
         {% endfor %}
       </tbody>
     </table></div>
-    {% else %}<p class="empty-state">No flares recorded in this period.</p>{% endif %}
+    {% else %}<p class="empty-state">No high-burden days recorded in this period.</p>{% endif %}
   </section>
 {% endblock %}

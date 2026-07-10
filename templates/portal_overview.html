@@ -17,7 +17,7 @@
   <section class="report-section" style="border-bottom:2px solid var(--border-medium);">
     <div class="stats">
       <div class="stat">
-        <div class="k">Flare burden</div>
+        <div class="k">High-burden episodes</div>
         <div class="v" style="color:var(--color-danger);">{{ synopsis.flares_per_month }}<span class="vu">/mo</span></div>
         <div class="s">{{ synopsis.flare_count }} in {{ synopsis.period_days }} days</div>
       </div>
@@ -44,8 +44,8 @@
   {% if burden %}
   <section class="report-section">
     <h2>Disease burden over time</h2>
-    <p class="section-note">Daily flare-risk score, stacked by what's driving it.
-       Vertical marks are recorded flares; the dashed line is the flare threshold.</p>
+    <p class="section-note">Daily symptom-burden score, stacked by what's driving it.
+       Vertical marks are recorded high-burden days; the dashed line is the high-burden threshold.</p>
     <canvas id="chartBurden" style="max-height:340px;"></canvas>
   </section>
   {% endif %}
@@ -81,7 +81,7 @@
       </a>
       <a class="scard" href="{{ url_for('portal_section', token=link.token, section='symptoms') }}">
         <div class="row"><span class="t">Symptom history</span><span class="n">{{ counts.obs_days }} days logged</span></div>
-        <p>Patient-logged symptom frequency, flares, and severity over the last 90 days.</p>
+        <p>Patient-logged symptom frequency, high-burden days, and severity over the last 90 days.</p>
       </a>
     </div>
   </section>
@@ -207,7 +207,7 @@
                             const idx = items[0].dataIndex;
                             const d = D[idx];
                             let t = d.date;
-                            if (d.flare) t += ' — ' + (d.severity === 'er_visit' ? 'ER visit' : (d.severity || '') + ' flare');
+                            if (d.flare) t += ' — ' + (d.severity === 'er_visit' ? 'ER visit' : (d.severity || '') + ' high-burden day');
                             return t;
                         },
                         afterBody: function(items) {
