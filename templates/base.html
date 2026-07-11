@@ -854,9 +854,9 @@
                         {% if request.endpoint == 'clinical_record' %}class="active"{% endif %}>
                          clinical
                     </a></li>
-                    <li><a href="{{ url_for('clinical_report') }}"
-                        {% if request.endpoint == 'clinical_report' %}class="active"{% endif %}>
-                        report
+                    <li><a href="{{ url_for('portals_manage') }}"
+                        {% if request.endpoint == 'portals_manage' %}class="active"{% endif %}>
+                        portal
                     </a></li>
                     <li><a href="{{ url_for('search') }}"
                         {% if request.endpoint == 'search' %}class="active"{% endif %}>
@@ -958,7 +958,7 @@
             <span>sync</span>
         </a>
         {% endif %}
-        <div class="mobile-nav-item {% if request.endpoint in ('hrv_view', 'uv_lag', 'wearable', 'cycle_view', 'search', 'help_page', 'settings', 'clinical_report') %}active{% endif %}"
+        <div class="mobile-nav-item {% if request.endpoint in ('hrv_view', 'uv_lag', 'wearable', 'cycle_view', 'search', 'help_page', 'settings', 'portals_manage') %}active{% endif %}"
              id="mobileMoreBtn" style="cursor:pointer; position:relative;">
             <span class="mobile-nav-icon">...</span>
             <span>more</span>
@@ -972,7 +972,7 @@
                 {% if track_cycle %}
                 <a href="{{ url_for('cycle_view') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">cycle</a>
                 {% endif %}
-                <a href="{{ url_for('clinical_report') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">report</a>
+                <a href="{{ url_for('portals_manage') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">portal</a>
                 <a href="{{ url_for('search') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">search</a>
                 <a href="{{ url_for('help_page') }}" style="display:block; padding:var(--space-xs) var(--space-md); color:var(--text-secondary); text-decoration:none; font-size:0.85rem;">help</a>
                 {% if 'HealthSyncAndroid' in request.headers.get('User-Agent', '') %}
