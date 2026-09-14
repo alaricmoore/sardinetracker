@@ -1,9 +1,15 @@
 """
 biotracking app.py
 ------------------
-Flask routes only. No database logic, no API calls.
-All data access goes through db.py.
-All UV fetching goes through uv_fetcher.py.
+The entry point. Importing this module assembles the whole app:
+
+    appcore.py      the Flask app, config, migrations, CSRF, login, request hooks
+    flaremodel.py   shared scoring layer used by pages, the API and reminders
+    reminders.py    ntfy notifications and scheduled jobs (starts the scheduler)
+    routes/         the pages and API, one module per area of the app
+
+Rules that hold across all of them: data access goes through db.py, and UV
+fetching goes through uv_fetcher.py.
 
 Run with:
     python app.py
