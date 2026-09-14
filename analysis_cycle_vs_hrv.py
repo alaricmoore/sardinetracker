@@ -46,10 +46,15 @@ def _patched_current_user_stub():
     return _Stub()
 
 
-_app_module.get_user_prefs = _patched_get_user_prefs
-# current_user is imported from flask_login; patching the reference inside app
-# module lets _inject_cycle_phase see an "authenticated" user.
-_app_module.current_user = _patched_current_user_stub()
+# The scoring helpers live in flaremodel and the request helpers in appcore,
+# and each module looks these names up in its own namespace, so every copy
+# needs the patch - patching app alone leaves _inject_cycle_phase reading the
+# real current_user, which is empty outside a request.
+import appcore as _appcore_module
+import flaremodel as _flaremodel_module
+for _m in (_app_module, _appcore_module, _flaremodel_module):
+    _m.get_user_prefs = _patched_get_user_prefs
+    _m.current_user = _patched_current_user_stub()
 
 from app import (  # noqa: E402
     _inject_cycle_phase,
