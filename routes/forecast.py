@@ -563,8 +563,11 @@ def forecast_lab():
         })
     
     # Model code — pull live source from the actual function
+    # Every scoring rule lives in _score_items; the score and its breakdown
+    # add those up, so that is the source worth showing.
     import inspect
-    model_code = inspect.getsource(calculate_flare_prime_score)
+    from flaremodel import _score_items
+    model_code = inspect.getsource(_score_items)
     
     # Achievements (check localStorage or session for unlocked ones)
     achievements = [
@@ -806,8 +809,10 @@ def forecast():
         ('temperature',  'Temperature',    '#c94040'),
         ('symptoms',     'Symptoms',       '#9b72cf'),
         ('pain_fatigue', 'Pain & Fatigue', '#e85d9e'),
+        ('cycle',        'Cycle Phase',    '#9563ec'),
         ('burden_delta', 'Burden Delta',   '#5b9bd5'),
         ('rmssd',        'RMSSD',          '#66bb6a'),
+        ('rmssd_instability', 'RMSSD Instability', '#c084fc'),
         ('resp_rate',    'Resp Rate',      '#e0a050'),
     ]
 

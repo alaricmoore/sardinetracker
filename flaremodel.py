@@ -216,46 +216,97 @@ VALID_FLARE_SEVERITIES = ("minor", "major", "er_visit")
 # Timeline
 # ============================================================
 
-def _score_components(obs: dict, user_id: int | None = None) -> dict:
-    """Compute per-category score contributions for a single observation.
+# Score categories, in the order the charts stack them.
+_SCORE_CATEGORIES = ('uv', 'exertion', 'temperature', 'symptoms', 'pain_fatigue',
+                     'cycle', 'burden_delta', 'rmssd', 'rmssd_instability', 'resp_rate')
 
-    Returns a dict with named component scores that sum to the total flare
-    prime score. This is the single source of truth for score attribution —
-    uses the same logic as calculate_flare_prime_score().
+# Symptom flag -> the name and colour it is listed under.
+_SYMPTOM_FACTORS = (
+    ('neurological', 'Neurological symptoms', '#4a90d9'),
+    ('cognitive', 'Cognitive symptoms', '#9b72cf'),
+    ('musculature', 'Muscle symptoms', '#d4a054'),
+    ('migraine', 'Migraine', '#c94040'),
+    ('pulmonary', 'Pulmonary symptoms', '#4ab8b8'),
+    ('dermatological', 'Skin symptoms', '#d4784a'),
+    ('mucosal', 'Mucosal symptoms', '#d4c4a0'),
+)
+
+
+def _ladder(value):
+    """Pain and fatigue share one ladder: (label, base points)."""
+    if value >= 7:
+        return 'Severe', 3.5
+    if value >= 6:
+        return 'High', 2.5
+    if value >= 5:
+        return 'Moderate', 1.5
+    if value >= 4:
+        return 'Mild', 0.5
+    return None, 0
+
+
+def _score_items(obs: dict, user_id: int | None = None,
+                 weights: dict | None = None) -> list:
+    """Every individual contribution to the flare prime score for one day.
+
+    Returns [{'category', 'name', 'points', 'color'}, ...] for each rule that
+    fired, with unrounded points. This is the one implementation of the
+    scoring rules: _score_components adds the items up by category, and its
+    total is the flare prime score; get_contributing_factors lists them. So
+    the score, its breakdown and its explanation cannot disagree.
 
     user_id: whose weights/preferences to score with. Defaults to the
     logged-in user; the clinician portal passes the link owner explicitly
     since portal requests carry no session.
+    weights: a full weights dict to score with instead of the stored ones
+    (the Forecast Lab simulation passes one).
     """
     if user_id is None and current_user.is_authenticated:
         user_id = current_user.id
-    weights = get_current_weights(user_id)
+    if weights is None:
+        weights = get_current_weights(user_id)
     uv_w = weights.get('uv_weight', 1.0)
     exertion_w = weights.get('exertion_weight', 1.0)
     temp_w = weights.get('temperature_weight', 1.0)
     pf_w = weights.get('pain_fatigue_weight', 1.0)
 
-    c = {}
+    items = []
 
-    # UV dose + cumulative
+    def add(category, name, points, color):
+        if points:
+            items.append({'category': category, 'name': name, 'points': points, 'color': color})
+
+    # UV dose (weighted UV x sun minutes x protection factor) + cumulative load
     sun_min = obs.get('sun_exposure_min') or 0
     uv_row = obs.get('_uv_row')
-    protection = UV_PROTECTION_MULTIPLIERS.get(obs.get('uv_protection_level') or 'none', 1.0)
-    w_uv = weighted_uv(uv_row)
-    uv_dose = (w_uv ** 1.5) * sun_min * protection
-    uv_pts = 0
+    if uv_row is None and obs.get('date'):
+        # Auto-lookup UV data if not pre-injected
+        try:
+            _prefs = db.get_user_preferences(user_id) if user_id else {}
+            _loc = db.make_location_key(
+                _prefs.get('location_lat') or CONFIG.get('location_lat', 0),
+                _prefs.get('location_lon') or CONFIG.get('location_lon', 0),
+            ) if _prefs else 'default'
+            uv_row = db.get_uv_data(_loc, obs['date'])
+        except Exception:
+            uv_row = None
+    protection_level = obs.get('uv_protection_level') or 'none'
+    protection = UV_PROTECTION_MULTIPLIERS.get(protection_level, 1.0)
+    uv_dose = (weighted_uv(uv_row) ** 1.5) * sun_min * protection
     if uv_dose >= 800:
-        uv_pts = 3 * uv_w
+        add('uv', f'High UV dose ({protection_level})', 3 * uv_w, '#d4b84a')
     elif uv_dose >= 400:
-        uv_pts = 1.25 * uv_w
+        add('uv', f'Moderate UV dose ({protection_level})', 1.25 * uv_w, '#d4b84a')
+    # Prior 4 days, decay-weighted 0.8/0.6/0.4/0.2. Thresholds scaled 1.5x
+    # from the old 3-day window to account for the extended lookback.
     cum_uv = obs.get('_cumulative_uv_dose')
     if cum_uv is not None and cum_uv >= 2500:
-        uv_pts += 1.5 * uv_w
+        add('uv', 'Heavy UV load over the past 4 days', 1.5 * uv_w, '#d4b84a')
     elif cum_uv is not None and cum_uv >= 1500:
-        uv_pts += 0.75 * uv_w
-    c['uv'] = round(uv_pts, 2)
+        add('uv', 'UV load over the past 4 days', 0.75 * uv_w, '#d4b84a')
 
-    # Exertion
+    # Physical overexertion: against the personal steps baseline when there
+    # is one, otherwise steps per hour slept
     steps = obs.get('steps') or 0
     hours_slept = obs.get('hours_slept') or 8
     steps_baseline = obs.get('_steps_baseline')
@@ -265,122 +316,120 @@ def _score_components(obs: dict, user_id: int | None = None) -> dict:
             steps_baseline = _p.get('steps_baseline') if _p else None
         except Exception:
             steps_baseline = None
-    ex_pts = 0
+    exertion = None
     if steps_baseline and steps_baseline > 0 and steps > 0:
         overexertion = (steps / steps_baseline) * (8.0 / max(hours_slept, 1))
         if overexertion >= 1.8:
-            ex_pts = 2.0 * exertion_w
+            exertion = 'severe'
         elif overexertion >= 1.4:
-            ex_pts = 1.5 * exertion_w
+            exertion = 'moderate'
     elif hours_slept > 0:
         ratio = steps / hours_slept
         if ratio >= 2000:
-            ex_pts = 2.0 * exertion_w
+            exertion = 'severe'
         elif ratio >= 1500:
-            ex_pts = 1.5 * exertion_w
-    c['exertion'] = round(ex_pts, 2)
+            exertion = 'moderate'
+    if exertion == 'severe':
+        add('exertion', 'Severe overexertion', 2.0 * exertion_w, '#c94040')
+    elif exertion == 'moderate':
+        add('exertion', 'Moderate overexertion', 1.5 * exertion_w, '#d4784a')
 
-    # Temperature
+    # Basal temperature (non-overlapping)
     basal_temp = obs.get('basal_temp_delta') or 0
-    t_pts = 0
     if basal_temp >= 0.8:
-        t_pts = 3 * temp_w
+        add('temperature', 'High fever', 3 * temp_w, '#c94040')
     elif basal_temp >= 0.5:
-        t_pts = 2 * temp_w
+        add('temperature', 'Moderate fever', 2 * temp_w, '#d4784a')
     elif basal_temp >= 0.3:
-        t_pts = 1 * temp_w
-    c['temperature'] = round(t_pts, 2)
+        add('temperature', 'Mild fever', 1 * temp_w, '#d4b84a')
 
-    # Individual symptoms — tier-scored from notes vocab when present,
-    # otherwise the per-symptom baseline weight (see symptom_points).
-    sym_pts = 0
-    for sym in ('neurological', 'cognitive', 'musculature', 'migraine',
-                'pulmonary', 'dermatological', 'mucosal'):
-        sym_pts += symptom_points(sym, obs, weights.get(sym, 0))
+    # Individual symptoms: tier-scored from notes vocab when present,
+    # otherwise the per-symptom weight (see symptom_points)
+    for sym, name, color in _SYMPTOM_FACTORS:
+        add('symptoms', name, symptom_points(sym, obs, weights.get(sym, 0)), color)
+
+    # Rheumatic: joint size parsed from the notes
     if obs.get('rheumatic'):
         rheum_notes = (obs.get('rheumatic_notes') or '').lower()
-        major_joints = ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']
-        minor_joints = ['finger', 'toe', 'hand']
-        if any(j in rheum_notes for j in major_joints):
-            sym_pts += 2.0
-        elif any(j in rheum_notes for j in minor_joints):
-            sym_pts += 1.0
+        if any(j in rheum_notes for j in ('hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw')):
+            add('symptoms', 'Major joint pain', 2.0, '#e85d9e')
+        elif any(j in rheum_notes for j in ('finger', 'toe', 'hand')):
+            add('symptoms', 'Minor joint pain', 1.0, '#e85d9e')
         else:
-            sym_pts += weights.get('rheumatic', 0.5)
-    c['symptoms'] = round(sym_pts, 2)
+            add('symptoms', 'Rheumatic symptoms', weights.get('rheumatic', 0.5), '#e85d9e')
 
-    # Pain & fatigue & emotional (laddered to match calculate_flare_prime_score)
-    pf_pts = 0
-    pain = obs.get('pain_scale') or 0
-    fatigue = obs.get('fatigue_scale') or 0
-    emotional = obs.get('emotional_state') or 5
-    if pain >= 7:
-        pf_pts += 3.5 * pf_w
-    elif pain >= 6:
-        pf_pts += 2.5 * pf_w
-    elif pain >= 5:
-        pf_pts += 1.5 * pf_w
-    elif pain >= 4:
-        pf_pts += 0.5 * pf_w
-    if fatigue >= 7:
-        pf_pts += 3.5 * pf_w
-    elif fatigue >= 6:
-        pf_pts += 2.5 * pf_w
-    elif fatigue >= 5:
-        pf_pts += 1.5 * pf_w
-    elif fatigue >= 4:
-        pf_pts += 0.5 * pf_w
-    if emotional <= 4:
-        pf_pts += 2 * pf_w
-    c['pain_fatigue'] = round(pf_pts, 2)
+    # Pain and fatigue (laddered: pain >= 4 already discriminates 75% flare vs
+    # 5% non-flare), and low emotional state
+    label, pts = _ladder(obs.get('pain_scale') or 0)
+    add('pain_fatigue', f'{label} pain', pts * pf_w, '#c94040')
+    label, pts = _ladder(obs.get('fatigue_scale') or 0)
+    add('pain_fatigue', f'{label} fatigue', pts * pf_w, '#d4a054')
+    if (obs.get('emotional_state') or 5) <= 4:
+        add('pain_fatigue', 'Low emotional state', 2 * pf_w, '#7a8499')
 
-    # Symptom burden delta
+    # Cycle phase (PMS/luteal risk elevation)
+    if obs.get('cycle_in_high_risk_phase'):
+        phase = 'PMS phase' if obs.get('cycle_phase_name') == 'pms' else 'Luteal phase'
+        add('cycle', phase, weights.get('cycle_phase', 1.0), '#9563ec')
+
+    # Symptom burden delta (acceleration above personal baseline)
     burden_w = weights.get('symptom_burden_weight', 1.0)
     burden_delta = obs.get('_symptom_burden_delta')
-    b_pts = 0
     if burden_delta is not None:
         if burden_delta >= 3.0:
-            b_pts = 3.0 * burden_w
+            add('burden_delta', 'Symptoms well above your baseline', 3.0 * burden_w, '#5b9bd5')
         elif burden_delta >= 2.0:
-            b_pts = 2.0 * burden_w
+            add('burden_delta', 'Symptoms above your baseline', 2.0 * burden_w, '#5b9bd5')
         elif burden_delta >= 1.0:
-            b_pts = 1.0 * burden_w
-    c['burden_delta'] = round(b_pts, 2)
+            add('burden_delta', 'Symptoms slightly above your baseline', 1.0 * burden_w, '#5b9bd5')
 
-    # RMSSD deviation
+    # RMSSD baseline deviation (vagal withdrawal signal)
     rmssd_w = weights.get('rmssd_deviation_weight', 0.5)
     rmssd_dev = obs.get('_rmssd_deviation')
-    r_pts = 0
     if rmssd_dev is not None:
         if rmssd_dev <= -25:
-            r_pts = 1.5 * rmssd_w
+            add('rmssd', 'RMSSD well below baseline', 1.5 * rmssd_w, '#66bb6a')
         elif rmssd_dev <= -15:
-            r_pts = 0.75 * rmssd_w
-    c['rmssd'] = round(r_pts, 2)
+            add('rmssd', 'RMSSD below baseline', 0.75 * rmssd_w, '#66bb6a')
 
-    # RMSSD instability
+    # RMSSD instability: day-to-day swings, independent of level
     inst_w = weights.get('rmssd_instability_weight', 0.5)
     rmssd_inst = obs.get('_rmssd_instability')
-    i_pts = 0
     if rmssd_inst is not None:
         if rmssd_inst >= 50:
-            i_pts = 1.5 * inst_w
+            add('rmssd_instability', 'Severe RMSSD instability', 1.5 * inst_w, '#c084fc')
         elif rmssd_inst >= 25:
-            i_pts = 0.75 * inst_w
-    c['rmssd_instability'] = round(i_pts, 2)
+            add('rmssd_instability', 'Elevated RMSSD instability', 0.75 * inst_w, '#c084fc')
 
-    # Respiratory rate deviation
+    # Respiratory rate baseline deviation (pre-event elevation signal)
     resp_w = weights.get('resp_rate_deviation_weight', 0.5)
     resp_dev = obs.get('_resp_rate_deviation')
-    rr_pts = 0
     if resp_dev is not None:
         if resp_dev >= 15:
-            rr_pts = 1.5 * resp_w
+            add('resp_rate', 'Respiratory rate well above baseline', 1.5 * resp_w, '#e0a050')
         elif resp_dev >= 10:
-            rr_pts = 0.75 * resp_w
-    c['resp_rate'] = round(rr_pts, 2)
+            add('resp_rate', 'Respiratory rate above baseline', 0.75 * resp_w, '#e0a050')
 
-    c['total'] = round(sum(c.values()), 1)
+    return items
+
+
+def _score_components(obs: dict, user_id: int | None = None,
+                      weights: dict | None = None) -> dict:
+    """Per-category score contributions for a single observation.
+
+    Returns each category's points plus 'total', which IS the flare prime
+    score: calculate_flare_prime_score() returns this total, so the breakdown
+    and the score cannot disagree. Parts are rounded to 2 places for display;
+    the total is rounded once, from the unrounded parts. The rules themselves
+    live in _score_items.
+    """
+    c = dict.fromkeys(_SCORE_CATEGORIES, 0)
+    for item in _score_items(obs, user_id=user_id, weights=weights):
+        c[item['category']] += item['points']
+    # float() so a day with nothing firing scores 0.0, as it always has, not int 0.
+    total = round(float(sum(c.values())), 1)
+    c = {k: round(v, 2) for k, v in c.items()}
+    c['total'] = total
     return c
 
 
@@ -588,180 +637,16 @@ def calculate_flare_prime_score(obs, weights_override=None):
 
     Weights can be customized via Forecast Lab (/forecast/lab)
     """
-    score = 0.0
-
-    # Load current weights (from user prefs or defaults), apply overrides
+    user_id = current_user.id if current_user.is_authenticated else None
     if weights_override:
         weights = DEFAULT_WEIGHTS.copy()
         weights.update(weights_override)
     else:
-        weights = get_current_weights(current_user.id if current_user.is_authenticated else None)
-
-    # Category multipliers (default 1.0 = no change)
-    uv_w = weights.get('uv_weight', 1.0)
-    exertion_w = weights.get('exertion_weight', 1.0)
-    temp_w = weights.get('temperature_weight', 1.0)
-    pf_w = weights.get('pain_fatigue_weight', 1.0)
-
-    # 1. UV Dose (weighted UV × sun minutes × protection factor)
-    sun_min = obs.get('sun_exposure_min') or 0
-    uv_row = obs.get('_uv_row')
-    if uv_row is None and obs.get('date'):
-        # Auto-lookup UV data if not pre-injected
-        try:
-            user_id = current_user.id if current_user.is_authenticated else None
-            _prefs = db.get_user_preferences(user_id) if user_id else {}
-            _loc = db.make_location_key(
-                _prefs.get('location_lat') or CONFIG.get('location_lat', 0),
-                _prefs.get('location_lon') or CONFIG.get('location_lon', 0),
-            ) if _prefs else 'default'
-            uv_row = db.get_uv_data(_loc, obs['date'])
-        except Exception:
-            uv_row = None
-    protection = UV_PROTECTION_MULTIPLIERS.get(
-        obs.get('uv_protection_level') or 'none', 1.0)
-    w_uv = weighted_uv(uv_row)
-    uv_dose = (w_uv ** 1.5) * sun_min * protection
-    if uv_dose >= 800:
-        score += 3 * uv_w
-    elif uv_dose >= 400:
-        score += 1.25 * uv_w
-
-    # Cumulative UV load bonus (prior 4 days, decay-weighted 0.8/0.6/0.4/0.2)
-    # Thresholds scaled 1.5x from old 3-day window to account for extended lookback.
-    cum_uv = obs.get('_cumulative_uv_dose')
-    if cum_uv is not None and cum_uv >= 2500:
-        score += 1.5 * uv_w
-    elif cum_uv is not None and cum_uv >= 1500:
-        score += 0.75 * uv_w
-
-    # 2. Physical Overexertion (steps / hours slept)
-    steps = obs.get('steps') or 0
-    hours_slept = obs.get('hours_slept') or 8
-    steps_baseline = obs.get('_steps_baseline')
-    if steps_baseline is None:
-        try:
-            _uid = current_user.id if current_user.is_authenticated else None
-            _p = db.get_user_preferences(_uid) if _uid else {}
-            steps_baseline = _p.get('steps_baseline') if _p else None
-        except Exception:
-            steps_baseline = None
-
-    if steps_baseline and steps_baseline > 0 and steps > 0:
-        overexertion = (steps / steps_baseline) * (8.0 / max(hours_slept, 1))
-        if overexertion >= 1.8:
-            score += 2.0 * exertion_w
-        elif overexertion >= 1.4:
-            score += 1.5 * exertion_w
-    elif hours_slept > 0:
-        exertion_ratio = steps / hours_slept
-        if exertion_ratio >= 2000:
-            score += 2.0 * exertion_w
-        elif exertion_ratio >= 1500:
-            score += 1.5 * exertion_w
-
-    # 3. Basal Temperature (simplified, non-overlapping)
-    basal_temp = obs.get('basal_temp_delta') or 0
-    if basal_temp >= 0.8:
-        score += 3 * temp_w
-    elif basal_temp >= 0.5:
-        score += 2 * temp_w
-    elif basal_temp >= 0.3:
-        score += 1 * temp_w
-    
-    # 4. Symptoms — tier-scored from notes vocab when present, otherwise the
-    # per-symptom baseline weight (see symptom_points at top of file).
-    for sym in ('neurological', 'cognitive', 'musculature', 'migraine',
-                'pulmonary', 'dermatological', 'mucosal'):
-        score += symptom_points(sym, obs, weights[sym])
-
-    # 5. Rheumatic (parse notes for joint type)
-    if obs.get('rheumatic'):
-        rheum_notes = (obs.get('rheumatic_notes') or '').lower()
-        major_joints = ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']
-        minor_joints = ['finger', 'toe', 'hand']
-        
-        if any(joint in rheum_notes for joint in major_joints):
-            score += 2.0
-        elif any(joint in rheum_notes for joint in minor_joints):
-            score += 1.0
-        else:
-            score += weights['rheumatic']
-    
-    # 6. Pain Scale (laddered — pain is a strong severity axis, d=+1.01 vs baseline)
-    # Previous cliff at >=7 only fired on 12% of flare days. Data shows >=4
-    # already discriminates 75% flare vs 5% non-flare.
-    pain = obs.get('pain_scale') or 0
-    if pain >= 7:
-        score += 3.5 * pf_w
-    elif pain >= 6:
-        score += 2.5 * pf_w
-    elif pain >= 5:
-        score += 1.5 * pf_w
-    elif pain >= 4:
-        score += 0.5 * pf_w
-
-    # 7. Fatigue Scale (laddered to match pain, d=+0.83 vs baseline)
-    fatigue = obs.get('fatigue_scale') or 0
-    if fatigue >= 7:
-        score += 3.5 * pf_w
-    elif fatigue >= 6:
-        score += 2.5 * pf_w
-    elif fatigue >= 5:
-        score += 1.5 * pf_w
-    elif fatigue >= 4:
-        score += 0.5 * pf_w
-
-    # 8. Emotional State
-    emotional = obs.get('emotional_state') or 5
-    if emotional <= 4:
-        score += 2 * pf_w
-
-    # 9. Cycle phase (PMS/luteal risk elevation)
-    if obs.get('cycle_in_high_risk_phase'):
-        score += weights.get('cycle_phase', 1.0)
-
-    # 10. Symptom burden delta (acceleration above personal baseline)
-    burden_w = weights.get('symptom_burden_weight', 1.0)
-    burden_delta = obs.get('_symptom_burden_delta')
-    if burden_delta is not None:
-        if burden_delta >= 3.0:
-            score += 3.0 * burden_w
-        elif burden_delta >= 2.0:
-            score += 2.0 * burden_w
-        elif burden_delta >= 1.0:
-            score += 1.0 * burden_w
-
-    # 11. RMSSD baseline deviation (vagal withdrawal signal, d=-0.35)
-    rmssd_w = weights.get('rmssd_deviation_weight', 0.5)
-    rmssd_dev = obs.get('_rmssd_deviation')
-    if rmssd_dev is not None:
-        if rmssd_dev <= -25:
-            score += 1.5 * rmssd_w
-        elif rmssd_dev <= -15:
-            score += 0.75 * rmssd_w
-
-    # 11b. RMSSD instability — mean |ΔRMSSD| in prior 5 days vs 30-day baseline.
-    # Captures autonomic chaos (oscillation) separately from level-based withdrawal.
-    # Independent signal — can fire alongside _rmssd_deviation.
-    inst_w = weights.get('rmssd_instability_weight', 0.5)
-    rmssd_inst = obs.get('_rmssd_instability')
-    if rmssd_inst is not None:
-        if rmssd_inst >= 50:
-            score += 1.5 * inst_w
-        elif rmssd_inst >= 25:
-            score += 0.75 * inst_w
-
-    # 12. Respiratory rate baseline deviation (pre-event elevation signal)
-    resp_w = weights.get('resp_rate_deviation_weight', 0.5)
-    resp_dev = obs.get('_resp_rate_deviation')
-    if resp_dev is not None:
-        if resp_dev >= 15:
-            score += 1.5 * resp_w
-        elif resp_dev >= 10:
-            score += 0.75 * resp_w
-
-    return round(score, 1)
+        weights = get_current_weights(user_id)
+    # One implementation: the score is the breakdown's total, so the dashboard,
+    # the forecast page and the clinician portal always show parts that add up
+    # to the number the forecast and alerts use.
+    return _score_components(obs, user_id=user_id, weights=weights)['total']
 
 def get_risk_level(score, threshold=8.0):
     """Determine risk level based on score.
@@ -798,118 +683,12 @@ def get_risk_level(score, threshold=8.0):
 
 
 def get_contributing_factors(obs: dict) -> list:
-        """Identify what's contributing to today's risk score."""
-        factors = []
-        
-        # UV exposure (weighted dose with protection)
-        sun_min = obs.get('sun_exposure_min') or 0
-        uv_row = obs.get('_uv_row')
-        if uv_row is None and obs.get('date'):
-            try:
-                _uid = current_user.id if current_user and current_user.is_authenticated else None
-                _prefs = db.get_user_preferences(_uid) if _uid else {}
-                _loc = db.make_location_key(
-                    _prefs.get('location_lat') or CONFIG.get('location_lat', 0),
-                    _prefs.get('location_lon') or CONFIG.get('location_lon', 0),
-                ) if _prefs else 'default'
-                uv_row = db.get_uv_data(_loc, obs['date'])
-            except Exception:
-                uv_row = None
-        protection = UV_PROTECTION_MULTIPLIERS.get(
-            obs.get('uv_protection_level', 'none'), 1.0)
-        w_uv = weighted_uv(uv_row)
-        uv_dose = (w_uv ** 1.5) * sun_min * protection
-        prot_label = obs.get('uv_protection_level') or 'none'
-        if uv_dose >= 800:
-            factors.append({'name': f'High UV dose ({prot_label})', 'points': 3, 'color': '#d4b84a'})
-        elif uv_dose >= 400:
-            factors.append({'name': f'Moderate UV dose ({prot_label})', 'points': 1.25, 'color': '#d4b84a'})
-        
-        # Overexertion
-        steps = obs.get('steps') or 0
-        hours_slept = obs.get('hours_slept') or 8
-        if hours_slept > 0:
-            exertion_ratio = steps / hours_slept
-            if exertion_ratio >= 2000:
-                factors.append({'name': 'Severe overexertion', 'points': 2, 'color': '#c94040'})
-            elif exertion_ratio >= 1500:
-                factors.append({'name': 'Moderate overexertion', 'points': 1.5, 'color': '#d4784a'})
-        
-        # Temperature
-        basal_temp = obs.get('basal_temp_delta') or 0
-        if basal_temp >= 0.8:
-            factors.append({'name': 'High fever', 'points': 3, 'color': '#c94040'})
-        elif basal_temp >= 0.5:
-            factors.append({'name': 'Moderate fever', 'points': 2, 'color': '#d4784a'})
-        elif basal_temp >= 0.3:
-            factors.append({'name': 'Mild fever', 'points': 1, 'color': '#d4b84a'})
-        
-        # Active symptoms
-        if obs.get('migraine'):
-            factors.append({'name': 'Migraine', 'points': 1, 'color': '#c94040'})
-        if obs.get('pulmonary'):
-            factors.append({'name': 'Pulmonary symptoms', 'points': 1, 'color': '#4ab8b8'})
-        if obs.get('musculature'):
-            factors.append({'name': 'Muscle symptoms', 'points': 1.5, 'color': '#d4a054'})  # CHANGED
-        if obs.get('dermatological'):
-            factors.append({'name': 'Skin symptoms', 'points': 0.75, 'color': '#d4784a'})
-        if obs.get('cognitive'):
-            factors.append({'name': 'Cognitive symptoms', 'points': 1.0, 'color': '#9b72cf'})  # CHANGED
-        if obs.get('neurological'):
-            factors.append({'name': 'Neurological symptoms', 'points': 1.5, 'color': '#4a90d9'})  # CHANGED
-        if obs.get('mucosal'):
-            factors.append({'name': 'Mucosal symptoms', 'points': 0.25, 'color': '#d4c4a0'})
-        
-        # Rheumatic
-        if obs.get('rheumatic'):
-            rheum_notes = (obs.get('rheumatic_notes') or '').lower()
-            if any(j in rheum_notes for j in ['hip', 'knee', 'shoulder', 'elbow', 'ankle', 'wrist', 'jaw']):
-                factors.append({'name': 'Major joint pain', 'points': 2, 'color': '#e85d9e'})
-            elif any(j in rheum_notes for j in ['finger', 'toe', 'hand']):
-                factors.append({'name': 'Minor joint pain', 'points': 1, 'color': '#e85d9e'})
-            else:
-                factors.append({'name': 'Rheumatic symptoms', 'points': 0.5, 'color': '#e85d9e'})
-        
-        # Fatigue (laddered)
-        fatigue = obs.get('fatigue_scale') or 0
-        if fatigue >= 7:
-            factors.append({'name': 'Severe fatigue', 'points': 3.5, 'color': '#d4a054'})
-        elif fatigue >= 6:
-            factors.append({'name': 'High fatigue', 'points': 2.5, 'color': '#d4a054'})
-        elif fatigue >= 5:
-            factors.append({'name': 'Moderate fatigue', 'points': 1.5, 'color': '#d4a054'})
-        elif fatigue >= 4:
-            factors.append({'name': 'Mild fatigue', 'points': 0.5, 'color': '#d4a054'})
+    """What is adding to today's flare score, largest first.
 
-        # Pain (laddered)
-        pain = obs.get('pain_scale') or 0
-        if pain >= 7:
-            factors.append({'name': 'Severe pain', 'points': 3.5, 'color': '#c94040'})
-        elif pain >= 6:
-            factors.append({'name': 'High pain', 'points': 2.5, 'color': '#c94040'})
-        elif pain >= 5:
-            factors.append({'name': 'Moderate pain', 'points': 1.5, 'color': '#c94040'})
-        elif pain >= 4:
-            factors.append({'name': 'Mild pain', 'points': 0.5, 'color': '#c94040'})
-        
-        # Low emotional state
-        emotional = obs.get('emotional_state') or 5
-        if emotional <= 3:
-            factors.append({'name': 'Low emotional state', 'points': 2, 'color': '#7a8499'})
-
-        # Cycle phase
-        if obs.get('cycle_in_high_risk_phase'):
-            phase_label = 'PMS phase' if obs.get('cycle_phase_name') == 'pms' else 'Luteal phase'
-            uid = current_user.id if current_user and current_user.is_authenticated else None
-            cycle_weight = get_current_weights(uid).get('cycle_phase', 1.0)
-            factors.append({'name': phase_label, 'points': cycle_weight, 'color': '#9563ec'})
-
-        # RMSSD instability (autonomic chaos, independent from level)
-        rmssd_inst = obs.get('_rmssd_instability')
-        if rmssd_inst is not None:
-            if rmssd_inst >= 50:
-                factors.append({'name': 'Severe RMSSD instability', 'points': 1.5, 'color': '#c084fc'})
-            elif rmssd_inst >= 25:
-                factors.append({'name': 'Elevated RMSSD instability', 'points': 0.75, 'color': '#c084fc'})
-
-        return factors
+    Lists exactly the contributions that make up the score (see _score_items),
+    each as {'name', 'points', 'color'}, so the points add up to the score.
+    Callers that show "top factors" take the first few.
+    """
+    items = sorted(_score_items(obs), key=lambda i: -i['points'])
+    return [{'name': i['name'], 'points': round(i['points'], 2), 'color': i['color']}
+            for i in items]

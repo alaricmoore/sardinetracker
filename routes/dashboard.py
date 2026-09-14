@@ -58,6 +58,7 @@ def timeline():
             'temperature': comp['temperature'],
             'symptoms': comp['symptoms'],
             'pain_fatigue': comp['pain_fatigue'],
+            'cycle': comp['cycle'],
             'burden_delta': comp['burden_delta'],
             'rmssd': comp['rmssd'],
             'rmssd_instability': comp['rmssd_instability'],
@@ -134,6 +135,9 @@ def timeline_export():
         'uv', 'exertion', 'temperature', 'symptoms', 'pain_fatigue',
         'burden_delta', 'rmssd', 'resp_rate',
         'burden_delta_raw', 'rmssd_deviation_raw', 'resp_rate_deviation_raw',
+        # Appended rather than inserted, so anything reading columns by
+        # position keeps working. With these, the parts sum to total_score.
+        'rmssd_instability', 'cycle',
     ])
 
     for obs in reversed(all_obs):
@@ -150,6 +154,7 @@ def timeline_export():
             obs.get('_symptom_burden_delta') or '',
             obs.get('_rmssd_deviation') or '',
             obs.get('_resp_rate_deviation') or '',
+            comp['rmssd_instability'], comp['cycle'],
         ])
 
     return Response(

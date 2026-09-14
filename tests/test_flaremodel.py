@@ -12,6 +12,7 @@ Expected values are worked out by hand from the code's thresholds.
 """
 
 import json
+import random
 from datetime import date, timedelta
 
 import pytest
@@ -226,6 +227,186 @@ class TestPrimeScore:
                "emotional_state": 3,                                 # 2.0
                "_symptom_burden_delta": 2.5}                         # 2.0
         assert score(obs) == 10.5
+
+
+# ------------------------------------------------------------------
+# Score breakdown: the parts shown on the dashboard, forecast page and
+# clinician portal must add up to the score itself
+# ------------------------------------------------------------------
+
+PARTS = ("uv", "exertion", "temperature", "symptoms", "pain_fatigue", "cycle",
+         "burden_delta", "rmssd", "rmssd_instability", "resp_rate")
+
+# Made-up, deliberately uneven weights: values that are not exact binary
+# fractions are where separately rounded copies of the scoring drift apart.
+UNEVEN_WEIGHTS = {
+    "uv_weight": 1.3, "exertion_weight": 0.7, "temperature_weight": 0.0,
+    "pain_fatigue_weight": 1.15, "cycle_phase": 1.1, "symptom_burden_weight": 0.9,
+    "rmssd_deviation_weight": 1.7, "rmssd_instability_weight": 1.05,
+    "resp_rate_deviation_weight": 1.35, "migraine": 2.2, "mucosal": 0.0, "neurological": 0.55,
+}
+
+
+def varied_days(n=400, seed=20260914):
+    """A deterministic spread of made-up days that touches every scoring category."""
+    rng = random.Random(seed)
+    pick = rng.choice
+    days = []
+    for _ in range(n):
+        days.append({
+            "_uv_row": pick([None, {"uv_noon": rng.uniform(0, 12), "uv_morning": rng.uniform(0, 5)}]),
+            "sun_exposure_min": pick([None, 0, rng.randint(1, 240)]),
+            "uv_protection_level": pick([None, *fm.UV_PROTECTION_MULTIPLIERS]),
+            "_cumulative_uv_dose": pick([None, rng.uniform(0, 4000)]),
+            "steps": pick([None, 0, rng.randint(0, 25000)]),
+            "hours_slept": pick([None, rng.uniform(1, 11)]),
+            "_steps_baseline": pick([None, rng.randint(3000, 12000)]),
+            "basal_temp_delta": pick([None, rng.uniform(-0.5, 1.2)]),
+            **{s: pick([0, 1]) for s in ("neurological", "cognitive", "musculature", "migraine",
+                                        "pulmonary", "dermatological", "mucosal", "rheumatic")},
+            "rheumatic_notes": pick([None, "", "knee", "fingers", "all over"]),
+            "pain_scale": pick([None, rng.randint(0, 10)]),
+            "fatigue_scale": pick([None, rng.randint(0, 10)]),
+            "emotional_state": pick([None, rng.randint(1, 10)]),
+            "cycle_in_high_risk_phase": pick([False, True]),
+            "_symptom_burden_delta": pick([None, rng.uniform(-2, 5)]),
+            "_rmssd_deviation": pick([None, rng.uniform(-50, 30)]),
+            "_rmssd_instability": pick([None, rng.uniform(-20, 120)]),
+            "_resp_rate_deviation": pick([None, rng.uniform(-10, 30)]),
+        })
+    return days
+
+
+class TestScoreBreakdown:
+    @pytest.mark.parametrize("weights", [{}, UNEVEN_WEIGHTS], ids=["default-weights", "uneven-weights"])
+    def test_breakdown_total_is_the_score(self, weights, monkeypatch, tmp_path):
+        if weights:
+            path = tmp_path / "weights.json"
+            path.write_text(json.dumps(weights))
+            monkeypatch.setattr(fm, "CUSTOM_WEIGHTS_PATH", str(path))
+        mismatches = []
+        for i, obs in enumerate(varied_days()):
+            total = fm._score_components(dict(obs))["total"]
+            prime = fm.calculate_flare_prime_score(dict(obs))
+            if total != prime:
+                mismatches.append((i, total, prime))
+        assert mismatches == []
+
+    def test_displayed_parts_account_for_the_whole_score(self):
+        # Each part is rounded to 2 places for display, so ten of them can be
+        # off by at most 0.05 together, plus 0.05 for rounding the total. A
+        # category left out of the breakdown shows up as a far bigger gap.
+        worst = 0.0
+        for obs in varied_days():
+            parts = fm._score_components(dict(obs))
+            assert set(PARTS) <= set(parts)
+            worst = max(worst, abs(sum(parts[k] for k in PARTS) - parts["total"]))
+        assert worst <= 0.1
+
+    def test_a_luteal_day_shows_its_cycle_phase_points(self):
+        # An explicit weight: the factory default for cycle_phase differs
+        # between deployments, and this test is about the breakdown, not it.
+        weights = dict(fm.DEFAULT_WEIGHTS, cycle_phase=1.75)
+        parts = fm._score_components({"cycle_in_high_risk_phase": True}, weights=weights)
+        assert parts["cycle"] == 1.75
+        assert parts["total"] == score({"cycle_in_high_risk_phase": True}, cycle_phase=1.75) == 1.8
+
+    def test_the_portal_scores_with_the_link_owners_weights(self, fresh_db):
+        # Portal requests carry no session, so the owner is passed explicitly.
+        import db
+        owner = db.create_user("owner", "Owner", "not-a-real-password-hash")
+        fm.save_custom_weights({"cycle_phase": 1.0}, user_id=owner)
+        parts = fm._score_components({"cycle_in_high_risk_phase": True}, user_id=owner)
+        assert (parts["cycle"], parts["total"]) == (1.0, 1.0)
+
+    def test_uv_is_looked_up_when_not_preloaded(self, monkeypatch):
+        monkeypatch.setattr(fm.db, "get_uv_data", lambda loc, d: {"uv_noon": 10})
+        obs = {"date": "2026-01-01", "sun_exposure_min": 60}   # dose 881.8
+        assert fm._score_components(dict(obs))["uv"] == 3.0
+        assert fm.calculate_flare_prime_score(dict(obs)) == 3.0
+
+    def test_score_and_total_are_always_floats(self):
+        # Pages and the CSV export print these; an int 0 shows as "0", not "0.0".
+        for obs in ({}, {"migraine": 1}, {"pain_scale": 7}):
+            assert isinstance(fm.calculate_flare_prime_score(dict(obs)), float)
+            assert isinstance(fm._score_components(dict(obs))["total"], float)
+
+    def test_explicit_weights_are_used_as_given(self):
+        weights = dict(fm.DEFAULT_WEIGHTS, migraine=4.0)
+        assert fm._score_components({"migraine": 1}, weights=weights)["symptoms"] == 4.0
+
+
+# ------------------------------------------------------------------
+# Contributing factors: the explanation shown on the forecast page, the
+# mobile status page, the flare-status API and push reminders
+# ------------------------------------------------------------------
+
+def names(obs):
+    return [f["name"] for f in fm.get_contributing_factors(obs)]
+
+
+class TestContributingFactors:
+    @pytest.mark.parametrize("weights", [{}, UNEVEN_WEIGHTS], ids=["default-weights", "uneven-weights"])
+    def test_listed_points_add_up_to_the_score(self, weights, monkeypatch, tmp_path):
+        if weights:
+            path = tmp_path / "weights.json"
+            path.write_text(json.dumps(weights))
+            monkeypatch.setattr(fm, "CUSTOM_WEIGHTS_PATH", str(path))
+        worst = 0.0
+        for obs in varied_days():
+            factors = fm.get_contributing_factors(dict(obs))
+            gap = abs(sum(f["points"] for f in factors) - fm.calculate_flare_prime_score(dict(obs)))
+            # Each listed point value is rounded to 2 places and the score to 1.
+            worst = max(worst, gap - 0.005 * len(factors))
+        assert worst <= 0.05 + 1e-9
+
+    def test_every_factor_adds_something_and_has_the_api_shape(self):
+        for obs in varied_days(100):
+            for f in fm.get_contributing_factors(dict(obs)):
+                assert set(f) == {"name", "points", "color"}
+                assert f["points"] > 0
+
+    def test_largest_first(self):
+        obs = {"migraine": 1, "pain_scale": 7, "basal_temp_delta": 0.5}   # 1.0, 3.5, 2.0
+        assert [f["points"] for f in fm.get_contributing_factors(obs)] == [3.5, 2.0, 1.0]
+
+    def test_mood_counts_at_the_same_level_as_the_score(self):
+        assert names({"emotional_state": 4}) == ["Low emotional state"]
+        assert names({"emotional_state": 5}) == []
+
+    def test_multi_day_signals_are_listed(self):
+        obs = {"_symptom_burden_delta": 3.5, "_rmssd_deviation": -30,
+               "_resp_rate_deviation": 20, "_cumulative_uv_dose": 1600}
+        assert set(names(obs)) == {
+            "Symptoms well above your baseline", "RMSSD well below baseline",
+            "Respiratory rate well above baseline", "UV load over the past 4 days"}
+
+    def test_points_use_the_weights(self):
+        weights = dict(fm.DEFAULT_WEIGHTS, migraine=3.0, pain_fatigue_weight=2.0)
+        items = fm._score_items({"migraine": 1, "pain_scale": 6}, weights=weights)
+        assert {i["name"]: i["points"] for i in items} == {"Migraine": 3.0, "High pain": 5.0}
+
+    def test_cycle_phase_is_named_by_phase(self, monkeypatch, tmp_path):
+        # A cycle weight above zero, whatever the factory default is.
+        path = tmp_path / "weights.json"
+        path.write_text(json.dumps({"cycle_phase": 1.0}))
+        monkeypatch.setattr(fm, "CUSTOM_WEIGHTS_PATH", str(path))
+        assert names({"cycle_in_high_risk_phase": True, "cycle_phase_name": "pms"}) == ["PMS phase"]
+        assert names({"cycle_in_high_risk_phase": True, "cycle_phase_name": "luteal"}) == ["Luteal phase"]
+
+    def test_a_zero_weight_hides_the_factor(self):
+        items = fm._score_items({"basal_temp_delta": 0.9},
+                                weights=dict(fm.DEFAULT_WEIGHTS, temperature_weight=0.0))
+        assert items == []
+
+    def test_recommendations_still_recognise_uv_and_joint_factors(self):
+        from routes.forecast import get_recommendations
+        uv = fm.get_contributing_factors({"_uv_row": {"uv_noon": 10}, "sun_exposure_min": 60})
+        joints = fm.get_contributing_factors({"rheumatic": 1, "rheumatic_notes": "left knee"})
+        uv_texts = [r["text"] for r in get_recommendations("Low Risk", uv)]
+        joint_texts = [r["text"] for r in get_recommendations("Low Risk", joints)]
+        assert any("sunscreen" in t for t in uv_texts)
+        assert any("cold therapy" in t for t in joint_texts)
 
 
 # ------------------------------------------------------------------

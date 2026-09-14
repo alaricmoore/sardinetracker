@@ -864,8 +864,10 @@ def _burden_series(all_obs_sorted, start_date, end_date, loc_key, user_id):
             "date": o["date"], "total": comp["total"],
             "uv": comp["uv"], "exertion": comp["exertion"],
             "temperature": comp["temperature"], "symptoms": comp["symptoms"],
-            "pain_fatigue": comp["pain_fatigue"], "burden_delta": comp["burden_delta"],
-            "rmssd": comp["rmssd"], "resp_rate": comp["resp_rate"],
+            "pain_fatigue": comp["pain_fatigue"], "cycle": comp["cycle"],
+            "burden_delta": comp["burden_delta"],
+            "rmssd": comp["rmssd"], "rmssd_instability": comp["rmssd_instability"],
+            "resp_rate": comp["resp_rate"],
             "flare": o.get("flare_occurred") == 1, "severity": o.get("flare_severity"),
         })
     return series
