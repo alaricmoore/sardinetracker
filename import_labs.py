@@ -145,8 +145,14 @@ def run_import(csv_path: str, user_id: int = 1, dry_run: bool = False,
                 skipped += 1
                 continue
 
-            # Parse value - could be numeric or qualitative
-            numeric_value = parse_float(value_str)
+            # Parse value - could be numeric or qualitative.
+            # Keep bounded results ("<20", ">24.0") as text, as the web import
+            # does: parse_float would strip the "<" and store a bare 20, which
+            # reads like a real value at the threshold rather than below it.
+            if "<" in value_str or ">" in value_str:
+                numeric_value = None
+            else:
+                numeric_value = parse_float(value_str)
             qualitative_result = None
 
             # If not numeric, treat as qualitative
