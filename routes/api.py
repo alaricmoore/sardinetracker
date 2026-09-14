@@ -4,6 +4,7 @@ backup export and restore, and chart data.
 """
 
 from scoring import UNCALIBRATED_RMSSD_BOUNDS, calibrate_rmssd_bounds, rmssd_is_implausible
+import hmac
 import json
 import os
 from datetime import date, datetime, timedelta
@@ -18,6 +19,18 @@ from flaremodel import CUSTOM_WEIGHTS_PATH, _inject_scoring_context, calculate_f
 from routes.reports import _build_backup_zip
 
 
+def _bearer_matches(auth: str, token: str) -> bool:
+    """True if an Authorization header carries exactly `token` as a Bearer token.
+
+    compare_digest takes the same time however much of a guess is right, so
+    response timing cannot be used to recover a token one character at a time.
+    Compared as bytes, so a header with non-ASCII characters is simply a
+    mismatch rather than an error.
+    """
+    return auth.startswith("Bearer ") and hmac.compare_digest(
+        auth[7:].encode("utf-8"), token.encode("utf-8"))
+
+
 @app.route("/api/backup/export")
 @csrf.exempt
 def api_backup_export():
@@ -27,7 +40,7 @@ def api_backup_export():
     if not token:
         return jsonify({"error": "api_token not configured"}), 500
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != token:
+    if not _bearer_matches(auth, token):
         return jsonify({"error": "unauthorized"}), 401
 
     user_id = request.args.get("user_id", type=int)
@@ -62,7 +75,7 @@ def api_backup_restore():
     if not token:
         return jsonify({"error": "api_token not configured"}), 500
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != token:
+    if not _bearer_matches(auth, token):
         return jsonify({"error": "unauthorized"}), 401
     if not CONFIG.get("single_user_mode"):
         return jsonify({"error": "restore only runs on single-user servers"}), 403
@@ -195,7 +208,7 @@ def api_health_sync():
     if not token:
         return jsonify({"error": "api_token not configured"}), 500
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != token:
+    if not _bearer_matches(auth, token):
         return jsonify({"error": "unauthorized"}), 401
 
     # --- parse body ---
@@ -346,7 +359,7 @@ def api_uv_ingest():
     if not token:
         return jsonify({"error": "wearable_token not configured"}), 500
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != token:
+    if not _bearer_matches(auth, token):
         return jsonify({"error": "unauthorized"}), 401
 
     user_id = CONFIG.get("wearable_user_id")
@@ -497,7 +510,7 @@ def api_flare_status():
     if not token:
         return jsonify({"error": "api_token not configured"}), 500
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != token:
+    if not _bearer_matches(auth, token):
         return jsonify({"error": "unauthorized"}), 401
 
     user_id = request.args.get("user_id")

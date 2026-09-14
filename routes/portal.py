@@ -3,7 +3,7 @@ The clinician portal. Public routes here take a capability token, not a
 login, and must never reach a write.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from flask import render_template, request, redirect, url_for, Response, send_from_directory
 from flask_login import login_required
 import db
@@ -24,6 +24,13 @@ from routes.reports import _burden_series, _serology_tags, generate_findings, se
 PORTAL_VIEWS = {"full": "Full record"}   # one read-only record, not per-specialty
 
 
+def _utcnow_naive() -> datetime:
+    """The current UTC time as a naive datetime, the form expires_at is stored
+    in. datetime.utcnow() returns the same thing but is deprecated, and would
+    break every portal link if a future Python removes it."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _valid_portal_link(token: str):
     """Return the link row if the token is real, not revoked, not expired —
     else None. This is the sole gate for portal access."""
@@ -31,7 +38,7 @@ def _valid_portal_link(token: str):
     if not link or link.get("revoked_at"):
         return None
     exp = link.get("expires_at")
-    if exp and exp < datetime.utcnow().isoformat():
+    if exp and exp < _utcnow_naive().isoformat():
         return None
     return link
 
@@ -273,7 +280,7 @@ def portals_manage():
         clinicians=db.get_all_clinicians(uid()),
         access_log=db.get_portal_access_log(uid(), limit=50),
         views=PORTAL_VIEWS,
-        now=datetime.utcnow().isoformat(),
+        now=_utcnow_naive().isoformat(),
         base_url=request.host_url.rstrip("/"),
     )
 
@@ -288,7 +295,7 @@ def portals_create():
         days = max(1, min(365, int(form.get("days") or 30)))
     except ValueError:
         days = 30
-    expires_at = (datetime.utcnow() + timedelta(days=days)).isoformat()
+    expires_at = (_utcnow_naive() + timedelta(days=days)).isoformat()
     db.create_portal_link(uid(), clinician_id, "full", label, expires_at)
     return redirect(url_for("portals_manage"))
 
