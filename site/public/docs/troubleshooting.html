@@ -232,15 +232,15 @@ nothing to the other two.</p>
 </tr>
 <tr>
 <td>Phone apps</td>
-<td><code>api_token</code> bearer header</td>
+<td>a signed client from <code>api_clients</code>, or the <code>api_token</code> bearer header until it's retired</td>
 <td>Access <strong>and</strong> the Flask login</td>
-<td>rotate in <code>config.json</code>, re-enter on each device</td>
+<td>remove the client's entry and restart; or rotate <code>api_token</code> and re-enter it on each device</td>
 </tr>
 <tr>
 <td>A device / wearable</td>
-<td><code>wearable_token</code> bearer header</td>
+<td>a signed counter client, or the <code>wearable_token</code> bearer header</td>
 <td>Access <strong>and</strong> the Flask login</td>
-<td>rotate in <code>config.json</code>, then reflash the device</td>
+<td>remove the client's entry and restart; or rotate <code>wearable_token</code>, then reflash the device</td>
 </tr>
 </tbody>
 </table></div>
@@ -371,6 +371,16 @@ not worth chasing. Always test with POST.</p>
 <li>
 <p>If it's only one device, suspect the device before the server — especially anything with
 flaky WiFi or no real-time clock. Check when its last ingest actually landed.</p>
+</li>
+<li>
+<p><strong>A 401 the device can't explain?</strong> The server logs the reason; the device never sees it.</p>
+<pre><code class="language-bash">journalctl -u &lt;your-service&gt; --since &quot;1 hour ago&quot; | grep &quot;api auth refused&quot;
+</code></pre>
+<p><code>unknown client</code> means the name isn't in <code>api_clients</code> (a misspelling, an entry pasted
+inside another client's braces, or no restart since the edit). <code>signature mismatch</code> means
+the secrets differ. A timestamp message means the device's clock has drifted more than five
+minutes. A <strong>403</strong> is the client getting in without the right permit or account, and its
+response says which.</p>
 </li>
 </ol>
 <h2 id="the-cold-check">The cold check</h2>
