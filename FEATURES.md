@@ -131,7 +131,7 @@ Bring a clinician into your data without handing over an account, an export, or 
 
 - **Local-first**: All data stored in local SQLite database on your machine
 - **No cloud sync**: Data never leaves your computer by default
-- **Accounts and login**: every page sits behind a username and password (bcrypt-hashed); each account's records are kept separate. See [Accounts and Login](#accounts-and-login) below.
+- **Accounts and login**: every page sits behind a username and password (bcrypt-hashed); each account's records are kept separate. See [Accounts and Login](README.md#accounts-and-login) in the README.
 - **Optional remote access**: reach your instance from outside the house through a Cloudflare Tunnel or a Tailscale-connected VPS, with a checklist for hardening the app before it faces the internet (see [REMOTE_ACCESS.md](REMOTE_ACCESS.md))
 - **Version control safe**: Comprehensive `.gitignore` protects health data from accidental commits
 - **Export control**: You decide what data leaves your system and when
