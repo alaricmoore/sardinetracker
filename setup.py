@@ -117,7 +117,7 @@ def create_config():
     config["debug"] = existing.get("debug", False)
     # Preserve existing secret_key — regenerating it invalidates active sessions
     config["secret_key"] = existing.get("secret_key") or secrets.token_hex(32)
-    # API token for iOS Shortcut / programmatic health-sync endpoint
+    # API token for the phone companion apps (health-sync, flare-status endpoints)
     config["api_token"] = existing.get("api_token") or secrets.token_hex(32)
     # Preserve passcode if set
     if existing.get("passcode"):
@@ -130,7 +130,7 @@ def create_config():
     if not existing.get("api_token"):
         print(f"\nAPI token generated for health-sync endpoint:")
         print(f"  {config['api_token']}")
-        print("  (copy this into your iOS Shortcut Authorization header)")
+        print("  (enter this in the sardinessync or sardinesync-android app)")
     print("\nOptional: add \"passcode\": \"yourpin\" to config.json to require")
     print("a login passcode to access the app (useful on shared networks).")
     return config

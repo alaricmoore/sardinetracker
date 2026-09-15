@@ -161,7 +161,7 @@ def api_backup_restore():
 
 
 # ============================================================
-# Health-sync API (iOS Shortcut / programmatic ingest)
+# Health-sync API (phone companion apps / programmatic ingest)
 # ============================================================
 
 _HEALTH_SYNC_FIELDS = {"steps", "hrv", "hrv_rmssd", "resting_heart_rate", "basal_temp_delta", "sun_exposure_min", "spo2", "respiratory_rate"}
@@ -196,7 +196,7 @@ def _rmssd_bounds_for_user(user_id: int) -> dict:
 @app.route("/api/health-sync", methods=["POST"])
 @csrf.exempt
 def api_health_sync():
-    """Accept health data from iOS Shortcut or other programmatic sources.
+    """Accept health data from the phone companion apps or other programmatic sources.
 
     Auth: Bearer token from config.json["api_token"].
     Body: JSON with user_id (required), date (optional, defaults to today),

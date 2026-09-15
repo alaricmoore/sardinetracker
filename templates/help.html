@@ -152,106 +152,33 @@
     <p>Setup instructions are in your <a href="{{ url_for('settings') }}" style="color: var(--color-accent);">settings</a>.</p>
 </div>
 
-<!-- Auto-Sync from Apple Health -->
+<!-- Auto-Sync from Your Phone -->
 <div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>Auto-Sync from Apple Health</h2>
-    <p>If you have an Apple Watch, you can have your iPhone send biometric data to sardinetracker automatically &mdash; no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature.</p>
-    <p>There are two ways to set this up. The <strong>native iOS app</strong> is more capable but requires you to build it yourself in Xcode. The <strong>iOS Shortcut</strong> approach is simpler but limited.</p>
+    <h2>Auto-Sync from Your Phone</h2>
+    <p>Your phone can send biometric data to sardinetracker automatically, with no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature. Each platform has its own companion app.</p>
 
-    <h3>Option A: sardinessync iOS app (recommended if you have a Mac)</h3>
+    <h3>iPhone: sardinessync</h3>
     <p><a href="https://github.com/alaricmoore/sardinessync" style="color: var(--color-accent);"><strong>sardinessync</strong></a> is a native iOS companion app that:</p>
     <ul>
-        <li>Reads everything HealthKit offers, including the things Shortcuts can't reach (RR intervals for overnight RMSSD, Time in Daylight, respiratory rate)</li>
+        <li>Reads everything HealthKit offers, including RR intervals for overnight RMSSD, Time in Daylight, and respiratory rate</li>
         <li>Computes RMSSD from raw heartbeat intervals on your phone (better accuracy than Apple's built-in HRV number)</li>
-        <li>Handles background sync automatically &mdash; no manual triggering</li>
+        <li>Handles background sync automatically, with no manual triggering</li>
         <li>Gives you a tab with mobile-friendly sardinetracker pages and local push notifications for flare alerts / medication doses</li>
     </ul>
-    <p>It's not in the App Store (not paying Apple $99/yr for a hobby project's listing). You clone the repo, open it in Xcode, plug your iPhone in, and build. With a free personal Apple ID the app expires every 7 days and needs a re-install &mdash; about 2 minutes if you leave Xcode configured. If you pay Apple the $99/yr, it lasts a year between rebuilds.</p>
-    <p>See the sardinessync repo's README for the full setup walkthrough. The short version: change the bundle ID to something unique to you, set signing team to your personal Apple ID, hit build, configure the server URL and API token inside the app on first launch.</p>
+    <p>It's not in the App Store (not paying Apple $99/yr for a hobby project's listing). You clone the repo, build it, and install it on your iPhone yourself. With a free personal Apple ID the app expires every 7 days and needs a re-install, about 2 minutes once you're set up. If you pay Apple the $99/yr, it lasts a year between rebuilds.</p>
+    <p>See the sardinessync repo's README for the full setup walkthrough. The short version: change the bundle ID to something unique to you, set signing team to your personal Apple ID, build, and configure the server URL and API token inside the app on first launch.</p>
 
-    <h3>Option B: iOS Shortcut (no Xcode required)</h3>
-    <p>This uses <strong>iOS Shortcuts</strong>, a built-in iPhone feature that lets you chain together small actions (like "read my step count" and "send it to a website") without writing any code.</p>
-    <p>It's a reasonable fallback if you can't or won't touch Xcode. Downsides vs. the native app:</p>
-    <ul>
-        <li>Can't compute RMSSD from RR intervals (Apple doesn't expose that data type to Shortcuts)</li>
-        <li>Can't read Time in Daylight (sun exposure minutes)</li>
-        <li>No background scheduling &mdash; has to be triggered by a Shortcuts automation or opened manually</li>
-        <li>No local notifications tied to your data</li>
-    </ul>
+    <h3>Android: sardinesync-android</h3>
+    <p><a href="https://github.com/alaricmoore/sardinesync-android" style="color: var(--color-accent);"><strong>sardinesync-android</strong></a> reads Health Connect, so it works with any wearable that writes there (Fitbit, Garmin, Samsung, Oura, Pixel Watch), not just an Apple Watch. Setup is in that repo's README.</p>
 
-    <h3>What gets synced (Shortcut version)</h3>
+    <h3>What doesn't sync</h3>
     <ul>
-        <li><strong>Steps</strong> &mdash; your total for the day</li>
-        <li><strong>HRV (SDNN)</strong> &mdash; heart rate variability from your watch</li>
-        <li><strong>Resting heart rate</strong> &mdash; useful for tracking tachycardia or inflammation patterns</li>
-        <li><strong>Basal body temperature</strong> &mdash; the delta your watch calculates from your personal baseline</li>
+        <li><strong>Sleep</strong>: Apple Health and Health Connect both have trouble with polyphasic sleep and sleepwalking, so sleep is better entered manually</li>
+        <li><strong>Symptoms, flare status, notes</strong>: these are personal observations that only you can provide</li>
     </ul>
-
-    <h3>What doesn't get synced via Shortcuts</h3>
-    <ul>
-        <li><strong>Sleep</strong> &mdash; Apple Health has trouble with polyphasic sleep and sleepwalking, so sleep is better entered manually</li>
-        <li><strong>Sun exposure minutes</strong> &mdash; Apple tracks "Time in Daylight" on the watch but doesn't make it available to Shortcuts (thanks, Apple). The sardinessync native app <em>can</em> read this.</li>
-        <li><strong>RMSSD</strong> &mdash; requires raw RR interval data, which Shortcuts can't access. Native app only.</li>
-        <li><strong>Symptoms, flare status, notes</strong> &mdash; these are personal observations that only you can provide</li>
-    </ul>
-
-    <h3>How to set up the Shortcut</h3>
-    <ol>
-        <li>Open the <strong>Shortcuts</strong> app on your iPhone (it's pre-installed &mdash; blue and pink icon)</li>
-        <li>Tap <strong>+</strong> to create a new shortcut, name it something like "Health Sync"</li>
-        <li>Use the search bar to add these actions in order:</li>
-    </ol>
-    <p><strong>Get the date:</strong></p>
-    <ul>
-        <li>Add a <strong>Date</strong> action</li>
-        <li>Add a <strong>Format Date</strong> action &mdash; set to Custom format: <code>yyyy-MM-dd</code></li>
-    </ul>
-    <p><strong>Pull your health data</strong> (add four "Find Health Samples" actions):</p>
-    <ul>
-        <li>Step Count &mdash; sort by Start Date, Most Recent, limit 1</li>
-        <li>Heart Rate Variability &mdash; sort by Start Date, Most Recent, limit 1</li>
-        <li>Resting Heart Rate &mdash; sort by Start Date, Most Recent, limit 1</li>
-        <li>Body Temperature &mdash; sort by Start Date, Most Recent, limit 1</li>
-    </ul>
-    <p>For Steps, make sure you're getting the sum for the day, not just the last sample.</p>
-    <p><strong>Build the data package:</strong></p>
-    <ul>
-        <li>Add a <strong>Dictionary</strong> action with these keys:
-            <ul>
-                <li><code>user_id</code> (Number) &mdash; your user ID, usually <code>1</code></li>
-                <li><code>date</code> (Text) &mdash; select the formatted date from earlier</li>
-                <li><code>steps</code> (Number) &mdash; select the step count result</li>
-                <li><code>hrv</code> (Number) &mdash; select the HRV result</li>
-                <li><code>resting_heart_rate</code> (Number) &mdash; select the resting HR result</li>
-                <li><code>basal_temp_delta</code> (Number) &mdash; select the body temperature result</li>
-            </ul>
-        </li>
-    </ul>
-    <p><strong>Send it:</strong></p>
-    <ul>
-        <li>Add <strong>Get Contents of URL</strong>
-            <ul>
-                <li>URL: your sardinetracker instance URL followed by <code>/api/health-sync</code></li>
-                <li>Method: POST</li>
-                <li>Add header <code>Authorization</code> with value <code>Bearer</code> followed by your API token (from <code>config.json</code> on the server)</li>
-                <li>Add header <code>Content-Type</code> with value <code>application/json</code></li>
-                <li>Request Body: JSON &mdash; select the Dictionary</li>
-            </ul>
-        </li>
-    </ul>
-    <p><strong>Test it</strong> by tapping the play button. You should see a response with <code>"ok": true</code>.</p>
-
-    <h3>Make it automatic</h3>
-    <p>Go to the <strong>Automation</strong> tab in Shortcuts and set your shortcut to run automatically. Good trigger options:</p>
-    <ul>
-        <li><strong>Bedtime begins</strong> &mdash; syncs when your wind-down starts</li>
-        <li><strong>Time of Day</strong> &mdash; set to late evening (like 11:50 PM)</li>
-    </ul>
-    <p>Set it to <strong>Run Immediately</strong> so it doesn't ask for confirmation each time.</p>
-    <p>Once set up, your phone handles this in the background every night. On bad days &mdash; the days you need the data most &mdash; it's one less thing to do.</p>
 
     <h3>A note about your API token</h3>
-    <p>The token in your Shortcut gives write access to a limited set of biometric fields. It cannot touch your symptoms, medications, flare logs, or notes. But treat it like a password &mdash; don't share your Shortcut with anyone you wouldn't trust with your sardinetracker login.</p>
+    <p>The token in the app can write your biometrics and read your flare score. Treat it like a password, and don't paste it anywhere you wouldn't paste your sardinetracker login. If it may have leaked, the remote access guide explains how to replace it.</p>
 </div>
 
 <!-- What This Is and Isn't -->

@@ -48,7 +48,7 @@ Always consult qualified healthcare providers for medical decisions. This app he
 - Your data never leaves your computer. No cloud storage, no third-party APIs for health data, no analytics, no tracking.
 - UV data comes from public weather APIs (Open-Meteo and Visual Crossing) using only your coordinates — no personal health information is transmitted.
 - You own your data. The database is a standard SQLite file you can back up, export, or delete at any time.
-- This is a single-user, local application. One instance per person, one database per instance.
+- It runs on your own machine. One instance can hold more than one account, and each account's records are kept separate.
 - Do not use this application to track anyone's health data without their informed consent. Don't be creepy.
 
 ---
@@ -58,7 +58,7 @@ Always consult qualified healthcare providers for medical decisions. This app he
 - macOS, Linux, or Windows (tested primarily on macOS and Linux... actually not tested on Windows. Sorry.)
 - Python 3.9 or later (earlier veersions work, but watch your D's and d's)
 - A web browser (Brave, Firefox, Safari, Edge, Opera, Tor...)
-- Optional: iPhone with Apple Health for biometric import (I have an apple watch, because access to raw data for free and it's also a watch)
+- Optional: an iPhone with Apple Health, or an Android phone with Health Connect, for biometric sync (I have an apple watch, because access to raw data for free and it's also a watch)
 
 ---
 
@@ -113,6 +113,9 @@ pip install -r requirements.txt
 
 # Run first-time setup
 python setup.py
+
+# Create your login (asks for a username and password)
+python create_user.py --admin
 ```
 
 The setup script will ask you for:
@@ -295,8 +298,8 @@ Bring a clinician into your data without handing over an account, an export, or 
 
 - **Local-first**: All data stored in local SQLite database on your machine
 - **No cloud sync**: Data never leaves your computer by default
-- **Optional passcode lock**: Require a PIN to access the app — useful on shared networks, with roommates, or in any situation where you need your health data to stay private from people in your physical space. Enable by adding one line to `config.json`. See [Optional Passcode](#optional-passcode-access-control) below.
-- **Optional remote access**: Raspberry Pi + Tailscale + Oracle Cloud setup for secure mobile access (see REMOTE_ACCESS.md)
+- **Accounts and login**: every page sits behind a username and password (bcrypt-hashed); each account's records are kept separate. See [Accounts and Login](#accounts-and-login) below.
+- **Optional remote access**: reach your instance from outside the house through a Cloudflare Tunnel or a Tailscale-connected VPS, with a checklist for hardening the app before it faces the internet (see [REMOTE_ACCESS.md](REMOTE_ACCESS.md))
 - **Version control safe**: Comprehensive `.gitignore` protects health data from accidental commits
 - **Export control**: You decide what data leaves your system and when
 
@@ -313,7 +316,7 @@ Bring a clinician into your data without handing over an account, an export, or 
 
 ### From Apple Health
 
-Biotracking can import HRV, sleep hours, wrist temperature, and daylight exposure from Apple Health, or whatever else you are tracking. Which provides free-of-cost raw data downloads.
+Sardinetracker can import HRV, sleep hours, wrist temperature, and daylight exposure from Apple Health, or whatever else you are tracking. Which provides free-of-cost raw data downloads.
 
 **Export from Apple Health:**
 
@@ -406,7 +409,7 @@ You'll need a free [Visual Crossing](https://visualcrossing.com) API key. Add it
 
 ### Daily Workflow
 
-1. Open biotracking at `http://localhost:5000`
+1. Open sardinetracker at `http://localhost:5000`
 2. Click "Daily Entry" to log today's data
 3. Fill in symptoms, environmental factors, and notes
 4. Check "Flare occurred today" if applicable
@@ -453,13 +456,13 @@ You'll need a free [Visual Crossing](https://visualcrossing.com) API key. Add it
 
 ### Remote Access (Optional)
 
-See `REMOTE_ACCESS.md` for detailed instructions on setting up remote access via Raspberry Pi + Tailscale.
+See [REMOTE_ACCESS.md](REMOTE_ACCESS.md) for two ways to reach your instance from outside the house (a Cloudflare Tunnel, or Tailscale plus a small VPS), and read its "Harden the app itself" section before you expose anything.
 
 ---
 
 ## Push Notifications via ntfy (Optional)
 
-Biotracking uses [ntfy](https://ntfy.sh) for two kinds of phone notifications:
+Sardinetracker uses [ntfy](https://ntfy.sh) for two kinds of phone notifications:
 
 1. **Medication dose reminders** — fires at the scheduled time for each dose in your taper
 2. **Proactive flare risk alerts** — fires once daily (default 8am) when your weighted risk score crosses the moderate threshold (≥ 5.0) or when you're about to enter a PMS/luteal phase. The alert includes your score, top contributing factors, and current cycle phase if relevant. High-risk alerts (≥ 8.0) use higher priority and a different tag so they stand out.
@@ -470,19 +473,19 @@ ntfy is a dead-simple open-source notification service. No account required. The
 
 1. Install the **ntfy** app on your phone (App Store or Google Play, free, by Philipp Heckel)
 2. Open the app and tap **Subscribe**
-3. Enter a topic name — make it long and unguessable, like `biotracking-k7x9qm3p`
+3. Enter a topic name — make it long and unguessable, like `sardinetracker-k7x9qm3p`
    (ntfy topics are public: anyone who knows the name can read and send to it, so don't use your name, your pet's name, or anything else obvious)
-4. Add two keys to your `config.json` on the machine running biotracking:
+4. Add two keys to your `config.json` on the machine running sardinetracker:
 
 ```json
-"ntfy_topic": "biotracking-k7x9qm3p",
+"ntfy_topic": "sardinetracker-k7x9qm3p",
 "ntfy_server": "https://ntfy.sh"
 ```
 
 1. Test it from your terminal before trusting your medication schedule to it:
 
 ```bash
-curl -d "test notification" https://ntfy.sh/biotracking-k7x9qm3p
+curl -d "test notification" https://ntfy.sh/sardinetracker-k7x9qm3p
 ```
 
 Your phone should buzz within a few seconds. If it doesn't, check that the topic name matches exactly and that notifications are enabled for the ntfy app in your phone's settings.
@@ -517,47 +520,31 @@ To disable flare alerts entirely without removing ntfy, just don't add `flare_al
 
 ---
 
-## Optional Passcode (Access Control)
+## Accounts and Login
 
-Health data can be sensitive in ways that go beyond the abstract. If you share a living space, use your laptop in shared areas, or are in any situation where you need your data visible only to you, the optional passcode adds a simple lock screen to the app.
+Every page sits behind a username and password. Passwords are stored as bcrypt hashes, never as plain text.
 
-**To enable:**
+Health data can be sensitive in ways that go beyond the abstract. If you share a living space, use your laptop in shared areas, or need your data visible only to you, your login is the lock.
 
-Open `config.json` (in your biotracking folder) in any text editor and add one line:
+**Create accounts** on the machine running sardinetracker:
 
-```json
-"passcode": "yourpin"
+```bash
+python create_user.py --admin    # your own account, with admin rights
+python create_user.py            # another account
+python create_user.py --list     # see who has an account
 ```
 
-For example, if your config currently ends with:
+**Let someone register themselves.** Add an invite code to `config.json` and restart:
 
 ```json
-  "debug": false,
-  "secret_key": "abc123..."
-}
+"registration_invite_code": "a-long-phrase-only-they-know"
 ```
 
-Make it:
+`/register` then accepts that code. Once they've signed up, remove the line and restart, so nobody else can use it.
 
-```json
-  "debug": false,
-  "secret_key": "abc123...",
-  "passcode": "yourpin"
-}
-```
+**"Remember me" lasts a year** on that browser. On a borrowed or shared device, leave it unticked and log out when you're done.
 
-Restart the app. From now on, anyone visiting the app URL will see a passcode prompt before they can access any data.
-
-A **lock** button will appear in the navigation bar. Clicking it ends your session immediately.
-
-**To disable:** remove the `"passcode"` line from `config.json` and restart.
-
-**Notes:**
-
-- The passcode can be any string — a word, a number, a phrase. It's stored in your local `config.json` file, which is already gitignored and never committed to GitHub.
-- This is a "lock the door" measure, not a cryptographic security system. It protects against casual access (someone picking up your laptop, a roommate, a family member) on a trusted home network. It is not a substitute for full-disk encryption if your threat model involves physical device seizure.
-- If you forget your passcode, open `config.json` in a text editor and either read it there or remove the line.
-- Sessions expire when you close the browser tab or click **lock**. There is no persistent "remember me."
+**Exposing the app to the internet?** A login alone isn't enough; the form doesn't limit guesses. Read the "Harden the app itself" section of [REMOTE_ACCESS.md](REMOTE_ACCESS.md) first.
 
 ---
 
@@ -653,20 +640,26 @@ Also reach out to me at <alaric.moore@pm.me>
 
 ```
 sardinetracker/
-├── app.py                      # Flask routes, scoring model, forecast lab, migrations hook
+├── app.py                      # Entry point: assembles the app from the modules below and runs it
+├── appcore.py                  # The Flask app itself: config, migrations hook, secret key, CSRF, login
+├── flaremodel.py               # Shared flare-scoring layer: weights, multi-day context, cycle detection
+├── scoring.py                  # Pure scoring primitives (no database, no Flask)
+├── reminders.py                # ntfy notifications and scheduled jobs
 ├── db.py                       # All database operations; idempotent run_migrations() at startup
 ├── uv_fetcher.py               # UV API integration (Open-Meteo + Visual Crossing)
-├── setup.py                    # First-run DB schema and per-user config
-├── create_user.py              # CLI for adding additional users post-setup
-├── MODEL.md                    # Full flare prediction model documentation (rendered at /model/docs)
-├── CHANGELOG.md                # Dated list of substantive changes
-├── CONTRIBUTING.md             # Contributor guidelines
-├── COMMERCIAL_LICENSE.md       # Commercial licensing terms (AGPL-3.0 for non-commercial)
-├── REMOTE_ACCESS.md            # Raspberry Pi + Tailscale + Oracle Cloud setup guide
-├── help.md                     # In-app help text
-├── requirements.txt            # Python dependencies
-├── config.json                 # User settings & API keys (gitignored)
-├── biotracking.db              # SQLite database (gitignored)
+├── summarize.py                # Deterministic digest of one day's flare context
+├── setup.py                    # First-run DB schema and config.json
+├── create_user.py              # CLI for creating and listing accounts
+├── routes/                     # Pages and API, one module per area of the app
+│   ├── admin.py                # Login, registration, settings, help pages, admin
+│   ├── api.py                  # Token-authenticated JSON API: health sync, UV ingest, flare status, backups
+│   ├── clinical.py             # Labs, ANA, events, medications, clinicians, documents
+│   ├── daily.py                # Home page, daily entry, mobile quick log
+│   ├── dashboard.py            # Model dashboard (/model), UV lag analysis
+│   ├── forecast.py             # Forecast, Forecast Lab and its simulation
+│   ├── interventions.py        # Intervention evaluation, birth control history, cycle view
+│   ├── portal.py               # Clinician portal (capability-token links)
+│   └── reports.py              # Search, CSV exports, clinical report
 ├── import_apple_health.py      # Apple Health CSV importer (HRV, sleep, wrist temp, daylight)
 ├── import_cycle.py             # Menstrual cycle Apple Health importer
 ├── import_labs.py              # Lab results CSV importer with ref-range auto-detection
@@ -675,18 +668,41 @@ sardinetracker/
 ├── backfill_uv.py              # Historical UV data fetcher (Visual Crossing API)
 ├── migrate_symptoms.py         # One-off migration: symptom category reorganization
 ├── migrate_to_multiuser.py     # One-off migration: single-user → multi-user schema
+├── analysis_cycle_vs_hrv.py    # One-off analysis: luteal phase vs RMSSD deviation as flare predictors
+├── severity_diagnostic.py      # One-off analysis: keyword severity buckets from symptom notes
+├── severity_vocab.py           # Severity vocabulary for parsing free-text symptom notes
 ├── rmssd_flare_rerun.py        # Standalone RMSSD pre-flare pattern analysis (generates PNG)
+├── make-manpage.py             # Renders TROUBLESHOOTING.md as the sardinetracker(7) man page
+├── README.md                   # This file
+├── WHY.md                      # The story behind the project
+├── MODEL.md                    # Full flare prediction model documentation (rendered at /model/docs)
+├── REMOTE_ACCESS.md            # Reaching your instance from outside the house, and hardening it
+├── TROUBLESHOOTING.md          # Symptom-first triage for a deployed instance
+├── help.md                     # Help text published at sardinetracker.com/docs (in-app: templates/help.html)
+├── CHANGELOG.md                # Dated list of substantive changes
+├── CONTRIBUTING.md             # Contributor guidelines
+├── COMMERCIAL_LICENSE.md       # Commercial licensing terms (AGPL-3.0 for non-commercial)
+├── LICENSE                     # AGPL-3.0
+├── requirements.txt            # Python dependencies
+├── requirements-dev.txt        # Test dependencies (pytest)
+├── pytest.ini                  # Test configuration
+├── config.json.example         # Template for config.json
+├── config.json                 # User settings & API keys (gitignored)
+├── biotracking.db              # SQLite database (gitignored)
 ├── config/
 │   ├── custom_weights.json     # Forecast Lab overrides (gitignored; per-user fallback)
 │   └── flare_alert_state.json  # Daily alert rate-limit state (gitignored)
 ├── backups/                    # Local DB backup snapshots (gitignored)
+├── man/sardinetracker.7        # Generated man page
+├── site/                       # sardinetracker.com landing page; build-docs.py renders the docs
+├── tests/                      # pytest suite
 └── templates/
     ├── base.html               # Shared layout + global CSS palette (colors referenced app-wide)
     ├── login.html, register.html
     ├── daily_entry.html, daily_confirm.html
     ├── mobile_base.html, mobile_log.html, mobile_status.html  # Phone-optimized entry flow
     ├── forecast.html           # Daily flare forecast with easter-egg >> link to lab
-    ├── timeline.html           # Model dashboard (score attribution) — served at /model
+    ├── timeline.html           # Model dashboard (score attribution), served at /model
     ├── forecast_lab.html       # Weight tuning interface
     ├── forecast_history.html   # Predictions vs actuals, ranked by score gap
     ├── forecast_accuracy.html  # Major/minor recall, missed-majors table, factor signal quality
@@ -695,15 +711,15 @@ sardinetracker/
     ├── hrv.html                # Legacy autonomic view (still on disk, no longer nav-linked)
     ├── cycle.html              # Menstrual cycle calendar
     ├── uv_lag.html             # UV-symptom correlation at 0/1/2/3/4-day lags
-    ├── wearable.html           # UV wearable view (prototype) — per-sample UV chart + daily dose
+    ├── wearable.html           # UV wearable view (prototype): per-sample UV chart + daily dose
     ├── clinical_record.html    # Labs, medications, events, clinicians, ANA, documents
-    ├── lab_import_preview.html  # CSV lab import review step
-    ├── portal_manage.html       # Mint/revoke clinician portal links (/portals)
-    ├── portal_*.html            # Clinician-facing read-only record (overview + sections)
+    ├── lab_import_preview.html # CSV lab import review step
+    ├── portal_manage.html      # Mint/revoke clinician portal links (/portals)
+    ├── portal_*.html           # Clinician-facing read-only record (overview + sections)
     ├── settings.html, admin.html
-    ├── report.html
+    ├── help.html               # In-app help page
     ├── search.html
-    ├── readme.html             # Renders README.md in-app
+    ├── readme.html             # Renders README.md and MODEL.md in-app
     └── remote_access.html      # Renders REMOTE_ACCESS.md in-app
 ```
 

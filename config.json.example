@@ -16,5 +16,5 @@
   "app_version": "2.0.0",
   "debug": false,
   "secret_key": "generate-a-random-hex-string-here",
-  "passcode": "0000"
+  "api_token": "generate-a-different-random-hex-string-here"
 }

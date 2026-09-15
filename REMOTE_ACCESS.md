@@ -44,8 +44,8 @@ There are two patterns documented here. Pick the one that fits your stomach and 
 | **HTTPS** | Automatic at Cloudflare's edge | You set up Let's Encrypt yourself |
 | **DDoS / abuse protection** | Built in (Cloudflare) | None (your VPS) |
 | **Traffic path** | You → Cloudflare edge → tunnel → Pi | You → VPS → Tailscale → Pi |
-| **Trust surface** | Cloudflare can see your domain's traffic flow (not contents) | Your VPS provider sees encrypted Tailscale traffic |
-| **Friction** | Lower once set up; CF dashboard is polished | More moving parts, but no third-party between you and your traffic |
+| **Trust surface** | HTTPS ends at Cloudflare's edge, so Cloudflare decrypts and can read everything that passes through (pages, form posts, API calls) | HTTPS ends at nginx on the VPS, so the VPS, and anyone with access to it, can read everything that passes through |
+| **Friction** | Lower once set up; CF dashboard is polished | More moving parts, but the only box in the middle is a server you run |
 
 **Option A is what the author runs now.** It moved off Option B after Oracle Cloud unceremoniously shut down the free-tier VM without warning, which is a useful data point about depending on free-tier VPS plans.
 
@@ -71,6 +71,8 @@ Raspberry Pi (your home network, running sardinetracker on localhost)
 
 The Pi does not need a public IP. It does not need any router ports forwarded. A small daemon called `cloudflared` runs on the Pi and makes an *outbound* connection to Cloudflare's edge. When you visit `app.yourdomain.com`, Cloudflare routes the request down that tunnel to your Flask app on the Pi.
 
+**What "terminates TLS" means for your data.** HTTPS protects the trip from your phone to Cloudflare, and the tunnel protects the trip from Cloudflare to the Pi, but in between, on Cloudflare's servers, each request and response is decrypted so Cloudflare can route it. Cloudflare can read what you view and type there, health data included. That's the trade for no open ports and a free certificate, and it's the same trade most websites make. For traffic that doesn't need the public internet at all, such as a script on your own laptop reading notes from the Pi, connect over Tailscale instead: it is encrypted from one of your devices to the other, with nothing in the middle that can read it.
+
 Your database never leaves the Pi.
 
 ### What you need
@@ -84,7 +86,19 @@ Your database never leaves the Pi.
 
 Follow the standard installation instructions in the README. Verify it runs on `http://localhost:5000` from the Pi itself before touching any networking. If you don't have a keyboard or screen, install headless debian onto the pi and ssh into it. You don't need a UI for any of this.
 
-The Flask app should keep listening on `127.0.0.1` (localhost). Unlike the Tailscale path, you do **not** need to change it to `0.0.0.0` — the tunnel runs on the Pi itself and reaches Flask via localhost.
+For this path, Flask should listen only on `127.0.0.1` (localhost). Out of the box it doesn't: `app.py` binds `0.0.0.0`, every network interface, so a phone on your WiFi can reach it. That also means anyone on your WiFi can reach Flask directly and skip everything you later put in front of it at Cloudflare. The tunnel runs on the Pi itself and reaches Flask through localhost, so it doesn't need the wider binding. In `app.py`, change:
+
+```python
+host="0.0.0.0",
+```
+
+to:
+
+```python
+host="127.0.0.1",
+```
+
+Once you do, same-WiFi phone access stops; your phone uses the tunnel address instead, at home or away.
 
 ### Step 2: Add your domain to Cloudflare
 
@@ -266,7 +280,7 @@ Raspberry Pi (your home network, runs Tailscale + sardinetracker)
 sardinetracker app + SQLite database
 ```
 
-Your database never leaves the Raspberry Pi. The VPS sees only encrypted Tailscale traffic — it cannot read the contents. Your phone connects to the VPS's public IP, which proxies through Tailscale to the Pi.
+Your database never leaves the Raspberry Pi, but what you view and send does pass through the VPS in readable form. Your phone connects to the VPS's public IP over HTTPS; nginx on the VPS ends that HTTPS connection, then forwards each request to the Pi over the encrypted Tailscale tunnel. The VPS provider's network only carries encrypted traffic, but anyone with access to the VM itself (you, or the provider) could read what passes through nginx.
 
 ### What you need
 
@@ -354,19 +368,19 @@ If your provider has a separate cloud-level firewall (Oracle did, AWS does), ope
 
 ### Step 6: Start sardinetracker on the Pi listening on Tailscale's interface
 
-By default sardinetracker listens on `127.0.0.1` only. To accept Tailscale traffic from the VPS, edit `app.py` and change:
+Out of the box, `app.py` binds `0.0.0.0`, every network interface, so traffic arriving from the VPS over Tailscale already reaches it. So does traffic from anyone on your home WiFi, who skips nginx and its basic auth entirely. Bind to the Pi's Tailscale address instead, so only your tailnet can reach Flask. Find it with `tailscale ip -4` on the Pi, then in `app.py` change:
 
 ```python
-host='127.0.0.1'
+host="0.0.0.0",
 ```
 
 to:
 
 ```python
-host='0.0.0.0'
+host="100.x.y.z",   # the Pi's Tailscale IP
 ```
 
-Restart the app. You should now be able to reach it from your VPS's public IP. And if you dig around the Tailscale options you can even give your Pi a nifty easy-remember-name.
+Restart the app. You should now be able to reach it from your VPS's public IP. And if you dig around the Tailscale options you can even give your Pi a nifty easy-remember-name. If the app starts before Tailscale is up (at boot, say), it fails with "Cannot assign requested address"; start it after `tailscaled` (in a systemd unit, `After=tailscaled.service`). And if you dig around the Tailscale options you can even give your Pi a nifty easy-remember-name.
 
 **Keep it running:**
 Use systemd, screen, or tmux so the app doesn't die when you close SSH:
@@ -390,6 +404,42 @@ It's a reasonable middle ground if you want to skip the VPS but don't want Cloud
 ### Use a strong password on sardinetracker itself
 
 Whichever path you choose, sardinetracker's own login is the last line of defense. Use a real password — long, unique, not your email password, not your phone PIN.
+
+### Harden the app itself
+
+Everything here uses settings and code you already have. Work through it before exposing the app, and look it over again after you update.
+
+**Keep `config.json` readable only by you.** It holds `secret_key`, which signs your login cookie (anyone who has it can forge a logged-in session), plus `api_token` and `wearable_token`. `setup.py` writes the file with your system's default permissions, which usually let every account on the machine read it. On the machine running sardinetracker:
+
+```bash
+chmod 600 config.json
+```
+
+**Know what each token opens.** `api_token` opens health sync (writes daily biometrics) and flare status (reads your current flare score). With `single_user_mode` on, it also opens backup export, which downloads the whole record, and backup restore, which replaces the whole database. `wearable_token` opens only UV ingest. Neither token is tied to one account: whoever holds `api_token` can name any `user_id`. Treat it like a password to your data, not like a sync setting.
+
+**Replace a token that may have leaked.** Pasted into a chat, visible in a screenshot, sitting in a log: make a new one.
+
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Paste the output over the old value in `config.json`, restart the app, and put the new token into each app that syncs. The old token stops working at restart. If `config.json` itself may have leaked, replace `secret_key` the same way; that also logs out every browser.
+
+**Never turn on `single_user_mode` on a server the internet can reach.** It signs every visitor in as the only account, with no password. It exists for the Android local app, where the server runs on the phone itself.
+
+**Keep `debug` false.** In debug mode, an error page carries Flask's interactive debugger, a Python console on your Pi guarded only by a PIN printed to the terminal. It's a tool for your own desk, not for a reachable server.
+
+**Listen only where you need to.** `app.py` binds every network interface by default. Once the app is remote, that lets anyone on your WiFi reach Flask without passing Cloudflare Access or nginx. Bind to `127.0.0.1` for Option A or the Pi's Tailscale IP for Option B; see [Option A, Step 1](#step-1-get-sardinetracker-running-on-the-pi) and [Option B, Step 6](#step-6-start-sardinetracker-on-the-pi-listening-on-tailscales-interface).
+
+**Leave registration off.** `/register` only works while `registration_invite_code` is set in `config.json`. On a reachable server, set it just long enough for someone to sign up, then remove it and restart. The invite code is all that stands between a stranger and a new account.
+
+**The login form doesn't slow down guessers.** There is no lockout and no delay after failed attempts. That's why a long password matters, and why a gate in front of the login (the next section) is worth the setup.
+
+**"Remember me" lasts a year.** The cookie it sets is good for 365 days. On a borrowed or shared device, leave the box unticked and log out when you're done.
+
+**Portal links are keys.** Anyone holding a clinician link sees the record until the link expires (30 days by default) or you revoke it at `/portals`. Send links the way you'd send a medical record, and revoke them when the appointment is over.
+
+**If you built the UV wearable:** the prototype firmware doesn't check the server's certificate, so on a shared or public WiFi network someone could pose as your server and collect `wearable_token`. Sync it only on networks you trust. The token opens nothing but UV ingest, which limits the damage.
 
 ### Add another auth layer if you can
 
@@ -461,113 +511,33 @@ Done. You're local only again either way.
 
 ## Auto-Sync from Apple Health
 
-You don't have to type biometrics in by hand. Two options, pick the one that fits.
+You don't have to type biometrics in by hand. Each phone platform has a companion app that reads your health data and sends it to your sardinetracker instance.
 
-### Option A: sardinessync native iOS app (recommended if you have a Mac)
+### iPhone: sardinessync
 
 **[sardinessync](https://github.com/alaricmoore/sardinessync)** is a native SwiftUI companion app that reads HealthKit on your iPhone, computes RMSSD on-device from raw RR intervals, and POSTs the result to your sardinetracker instance. It's in its own repo because the iOS code and the Flask code evolve on different cadences.
 
-**Why this and not the App Store?** It's not in the App Store. I don't pay Apple $99 a year to list a tool that runs on my own server, talks only to my own server, and has one user. You build it yourself in Xcode.
+**Why this and not the App Store?** It's not in the App Store. I don't pay Apple $99 a year to list a tool that runs on my own server, talks only to my own server, and has one user. You build it yourself.
 
-**What you need:** a Mac with Xcode installed, and an Apple ID. No developer account required.
+**What you need:** an Apple ID, plus either a Mac with Xcode or a Linux machine with [xtool](https://github.com/xtool-org/xtool). No paid developer account required.
 
-**Free-signing reality:** with a free personal Apple ID, builds work but the cert expires every 7 days — you plug the phone back into Xcode and hit build-run again, about 2 minutes. If you pay Apple $99/year, builds last a year. I free-sign; weekly rebuild is an annoyance, not a blocker.
+**Free-signing reality:** with a free personal Apple ID, builds work but the cert expires every 7 days, so you rebuild and reinstall weekly, about 2 minutes. If you pay Apple $99/year, builds last a year. I free-sign; weekly rebuild is an annoyance, not a blocker.
 
-**What it syncs that the Shortcut route can't:**
+**What it syncs:** steps, HRV (SDNN), RMSSD, resting heart rate, respiratory rate, SpO2, basal body temperature, and time in daylight. RMSSD needs raw beat-to-beat (RR) intervals, which the app reads from HealthKit and turns into RMSSD on the phone over an overnight window (10pm-8am).
 
-- **RMSSD** — requires raw RR interval data, which Apple doesn't expose to Shortcuts. The native app reads it and computes RMSSD on-device during an overnight window (10pm-8am).
-- **Time in Daylight** (sun exposure minutes) — Apple tracks this on the watch but hides it from Shortcuts.
-- **Respiratory rate** and **SpO2** — same story.
-
-Full walkthrough in the sardinessync repo's README. Short version:
-
-1. Clone the repo on your Mac
-2. Open the `.xcodeproj` in Xcode
-3. In **Signing & Capabilities**, set Team to your personal Apple ID and change the bundle identifier to something unique (e.g. `com.yourname.sardinessync`)
-4. Plug in your iPhone (not the Simulator — HealthKit only works on real devices)
-5. Hit build; trust the dev cert on the phone (Settings → General → VPN & Device Management)
-6. In the app, set the server URL (`https://your-sardinetracker-instance/api/health-sync`) and the bearer token from your `config.json`
-7. Grant HealthKit permissions
-8. "Sync Now" should report `synced N fields: steps, hrv, rmssd, ...`
+The build and first-run steps live in the [sardinessync README](https://github.com/alaricmoore/sardinessync), for both Xcode and xtool. You'll need two things from this server: the sync URL (`https://your-sardinetracker-instance/api/health-sync`) and the `api_token` from your `config.json`. When a sync works, the app reports something like `synced 9 fields: steps, hrv, ...`.
 
 It then runs automatically in the background overnight. Flare alerts and medication dose reminders arrive as local push notifications.
 
 **Xcode sucks. Hard.** If you're reading this after the third "Command failed due to signal: Segmentation fault: 11" — I'm sorry, we've all been there.
 
-### Option B: iOS Shortcut (no Mac required)
+### Android: sardinesync-android
 
-Good fallback if you don't have a Mac or don't want to touch Xcode. This uses the built-in Shortcuts app, no code.
+**[sardinesync-android](https://github.com/alaricmoore/sardinesync-android)** reads Health Connect, so it works with any wearable that writes there (Fitbit, Garmin, Samsung, Oura, Pixel Watch), not just an Apple Watch. It sends the same fields to `/api/health-sync`. Setup lives in that repo's README.
 
-**What it syncs:** steps, HRV (SDNN, not RMSSD), resting heart rate, and basal body temperature (delta).
+### Both apps use `api_token`
 
-**What it doesn't sync:** RMSSD (requires raw RR intervals — native-app-only), sleep (enter manually — Apple Health struggles with polyphasic sleep and sleepwalking), sun exposure minutes (Apple doesn't expose Time in Daylight to Shortcuts despite tracking it on the watch), respiratory rate, SpO2, and period flow (use sardinetracker directly — it's better at cycle tracking than Apple Health anyway).
-
-### Setup
-
-Your sardinetracker instance has an API endpoint at `/api/health-sync` that accepts health data via a secure token. The token is in your `config.json` file on the Pi (generated when you run `setup.py`). Treat this token like a password.
-
-### Building the Shortcut
-
-Open the **Shortcuts** app on your iPhone and create a new shortcut:
-
-**1. Get today's date**
-- Add a **Date** action
-- Add a **Format Date** action, set format to **Custom**: `yyyy-MM-dd`
-
-**2. Pull health data**
-
-Add four **Find Health Samples** actions, one for each metric:
-
-| Action | Sample Type | Sort By | Limit |
-|--------|------------|---------|-------|
-| 1 | Step Count | Start Date, Most Recent | 1 |
-| 2 | Heart Rate Variability | Start Date, Most Recent | 1 |
-| 3 | Resting Heart Rate | Start Date, Most Recent | 1 |
-| 4 | Body Temperature | Start Date, Most Recent | 1 |
-
-For Step Count, make sure you're getting the **sum for the day**, not just the most recent sample.
-
-**3. Build the request**
-
-Add a **Dictionary** action with these keys:
-
-| Key | Type | Value |
-|-----|------|-------|
-| user_id | Number | Your user ID (usually 1) |
-| date | Text | *select the Formatted Date from step 1* |
-| steps | Number | *select result from step 2, action 1* |
-| hrv | Number | *select result from step 2, action 2* |
-| resting_heart_rate | Number | *select result from step 2, action 3* |
-| basal_temp_delta | Number | *select result from step 2, action 4* |
-
-**4. Send it**
-
-Add a **Get Contents of URL** action:
-- URL: `https://your-sardinetracker-instance/api/health-sync`
-- Method: **POST**
-- Headers:
-  - `Authorization`: `Bearer YOUR_TOKEN_HERE`
-  - `Content-Type`: `application/json`
-- Request Body: **JSON** — select the Dictionary from step 3
-
-**5. Test it**
-
-Tap the play button to run the shortcut. You should see a response like `{"ok": true, "fields_updated": ["steps", "hrv", ...]}`. Check your sardinetracker daily entry to confirm the values appeared.
-
-**6. Automate it**
-
-Go to the **Automation** tab in the Shortcuts app:
-- Tap **+**, choose a trigger:
-  - **"Bedtime begins"** — syncs when your wind-down starts (recommended)
-  - **"Time of Day"** — set to 11:50 PM daily
-- Set to **Run Immediately** so it doesn't ask for confirmation
-- Select your Health Sync shortcut
-
-Once set up, your phone will quietly sync your health data every night without you lifting a finger. On bad days, that's one less thing to worry about.
-
-### Security Note
-
-The API token in your Shortcut has write access to your health data. It can only write a limited set of biometric fields (steps, HRV, heart rate, temperature, sun minutes) and cannot touch symptoms, flare status, medications, or notes. But still — don't share your Shortcut with anyone unless you trust them with your sardinetracker login.
+The token in each app can write your biometrics and read your flare score. See [Harden the app itself](#harden-the-app-itself) for everything it opens and how to replace it.
 
 ---
 

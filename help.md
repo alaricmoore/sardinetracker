@@ -25,7 +25,7 @@ The daily entry form is the core of the app. You don't have to fill out every fi
 - **Sun exposure minutes** and **UV protection level** — how long outside, and whether you wore SPF/hat/full cover/stayed indoors. The model multiplies UV index by exposure time by a protection factor.
 - **Sleep hours** — short sleep drives up the overexertion score.
 
-Biometrics from your Apple Watch (HRV, RMSSD, resting heart rate, respiratory rate, basal body temperature) fill in automatically if you're using the sardinessync iOS app or the Apple Health Shortcut — you don't have to type those.
+Biometrics from your Apple Watch (HRV, RMSSD, resting heart rate, respiratory rate, basal body temperature) fill in automatically if you're using the sardinessync iOS app or the sardinesync-android app, so you don't have to type those.
 
 Everything else adds context and richness over time but won't change your daily score dramatically.
 
@@ -173,100 +173,35 @@ Setup instructions are in your account profile.
 
 ---
 
-## Auto-Sync from Apple Health
+## Auto-Sync from Your Phone
 
-If you have an Apple Watch, you can have your iPhone send biometric data to sardinetracker automatically — no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature.
+Your phone can send biometric data to sardinetracker automatically, with no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature. Each platform has its own companion app.
 
-There are two ways to set this up. The **native iOS app** is more capable but requires you to build it yourself in Xcode. The **iOS Shortcut** approach is simpler but limited.
-
-### Option A: sardinessync iOS app (recommended if you have a Mac)
+### iPhone: sardinessync
 
 **[sardinessync](https://github.com/alaricmoore/sardinessync)** is a native iOS companion app that:
 
-- Reads everything HealthKit offers, including the things Shortcuts can't reach (RR intervals for overnight RMSSD, Time in Daylight, respiratory rate)
+- Reads everything HealthKit offers, including RR intervals for overnight RMSSD, Time in Daylight, and respiratory rate
 - Computes RMSSD from raw heartbeat intervals on your phone (better accuracy than Apple's built-in HRV number)
-- Handles background sync automatically — no manual triggering
+- Handles background sync automatically, with no manual triggering
 - Gives you a tab with mobile-friendly sardinetracker pages and local push notifications for flare alerts / medication doses
 
-It's not in the App Store (not paying Apple $99/yr for a hobby project's listing). You clone the repo, open it in Xcode, plug your iPhone in, and build. With a free personal Apple ID the app expires every 7 days and needs a re-install — about 2 minutes if you leave Xcode configured. If you pay Apple the $99/yr, it lasts a year between rebuilds.
+It's not in the App Store (not paying Apple $99/yr for a hobby project's listing). You clone the repo, build it, and install it on your iPhone yourself. With a free personal Apple ID the app expires every 7 days and needs a re-install, about 2 minutes once you're set up. If you pay Apple the $99/yr, it lasts a year between rebuilds.
 
-See the sardinessync repo's README for the full setup walkthrough. The short version: change the bundle ID to something unique to you, set signing team to your personal Apple ID, hit build, configure the server URL and API token inside the app on first launch.
+See the sardinessync repo's README for the full setup walkthrough. The short version: change the bundle ID to something unique to you, set signing team to your personal Apple ID, build, and configure the server URL and API token inside the app on first launch.
 
-### Option B: iOS Shortcut (no Xcode required)
+### Android: sardinesync-android
 
-This uses **iOS Shortcuts**, a built-in iPhone feature that lets you chain together small actions (like "read my step count" and "send it to a website") without writing any code.
+**[sardinesync-android](https://github.com/alaricmoore/sardinesync-android)** reads Health Connect, so it works with any wearable that writes there (Fitbit, Garmin, Samsung, Oura, Pixel Watch), not just an Apple Watch. Setup is in that repo's README.
 
-It's a reasonable fallback if you can't or won't touch Xcode. Downsides vs. the native app:
-- Can't compute RMSSD from RR intervals (Apple doesn't expose that data type to Shortcuts)
-- Can't read Time in Daylight (sun exposure minutes)
-- No background scheduling — has to be triggered by a Shortcuts automation or opened manually
-- No local notifications tied to your data
+### What doesn't sync
 
-### What gets synced (Shortcut version)
-
-- **Steps** — your total for the day
-- **HRV (SDNN)** — heart rate variability from your watch
-- **Resting heart rate** — useful for tracking tachycardia or inflammation patterns
-- **Basal body temperature** — the delta your watch calculates from your personal baseline
-
-### What doesn't get synced via Shortcuts
-
-- **Sleep** — Apple Health has trouble with polyphasic sleep and sleepwalking, so sleep is better entered manually
-- **Sun exposure minutes** — Apple tracks "Time in Daylight" on the watch but doesn't make it available to Shortcuts (thanks, Apple). The sardinessync native app *can* read this.
-- **RMSSD** — requires raw RR interval data, which Shortcuts can't access. Native app only.
-- **Symptoms, flare status, notes** — these are personal observations that only you can provide
-
-### How to set it up
-
-1. Open the **Shortcuts** app on your iPhone (it's pre-installed — blue and pink icon)
-2. Tap **+** to create a new shortcut, name it something like "Health Sync"
-3. Use the search bar to add these actions in order:
-
-**Get the date:**
-- Add a **Date** action
-- Add a **Format Date** action — set to Custom format: `yyyy-MM-dd`
-
-**Pull your health data (add four "Find Health Samples" actions):**
-- Step Count — sort by Start Date, Most Recent, limit 1
-- Heart Rate Variability — sort by Start Date, Most Recent, limit 1
-- Resting Heart Rate — sort by Start Date, Most Recent, limit 1
-- Body Temperature — sort by Start Date, Most Recent, limit 1
-
-For Steps, make sure you're getting the sum for the day, not just the last sample.
-
-**Build the data package:**
-- Add a **Dictionary** action with these keys:
-  - `user_id` (Number) — your user ID, usually `1`
-  - `date` (Text) — select the formatted date from earlier
-  - `steps` (Number) — select the step count result
-  - `hrv` (Number) — select the HRV result
-  - `resting_heart_rate` (Number) — select the resting HR result
-  - `basal_temp_delta` (Number) — select the body temperature result
-
-**Send it:**
-- Add **Get Contents of URL**
-  - URL: your biotracker address followed by `/api/health-sync`
-  - Method: POST
-  - Add header `Authorization` with value `Bearer` followed by your API token (from config.json on the server)
-  - Add header `Content-Type` with value `application/json`
-  - Request Body: JSON — select the Dictionary
-
-**Test it** by tapping the play button. You should see a response with `"ok": true`.
-
-### Make it automatic
-
-Go to the **Automation** tab in Shortcuts and set your shortcut to run automatically. Good trigger options:
-
-- **Bedtime begins** — syncs when your wind-down starts
-- **Time of Day** — set to late evening (like 11:50 PM)
-
-Set it to **Run Immediately** so it doesn't ask for confirmation each time.
-
-Once set up, your phone handles this in the background every night. On bad days — the days you need the data most — it's one less thing to do.
+- **Sleep**: Apple Health and Health Connect both have trouble with polyphasic sleep and sleepwalking, so sleep is better entered manually
+- **Symptoms, flare status, notes**: these are personal observations that only you can provide
 
 ### A note about your API token
 
-The token in your Shortcut gives write access to a limited set of biometric fields. It cannot touch your symptoms, medications, flare logs, or notes. But treat it like a password — don't share your Shortcut with anyone you wouldn't trust with your biotracker login.
+The token in the app can write your biometrics and read your flare score. Treat it like a password, and don't paste it anywhere you wouldn't paste your sardinetracker login. If it may have leaked, the remote access guide explains how to replace it.
 
 ---
 
