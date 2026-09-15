@@ -79,6 +79,14 @@ DOCS = [
         "blurb": "Everything the tracker does, one area at a time: daily logging, the "
                  "flare model, interventions, the clinical record and the clinician portal.",
     },
+    {
+        "src": "IMPORTING.md",
+        "slug": "importing",
+        "nav": "importing",
+        "title": "Importing your data",
+        "blurb": "Bringing in history you already have: Apple Health exports, cycle data, "
+                 "a spreadsheet tracker, lab results, and backfilled UV.",
+    },
 ]
 
 # Links to documents we haven't published yet resolve to GitHub instead of 404.
