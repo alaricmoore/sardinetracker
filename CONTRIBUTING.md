@@ -1,10 +1,10 @@
-# Contributing to biotracking
+# Contributing to sardinetracker
 
 First, thank you for being here. Whether you found this project because you're sick and frustrated and recognized yourself in the README, or because you're a developer who wants to build something useful, or both: welcome.
 
 ## Who Can Contribute
 
-Everyone. Lived experience of diagnostic complexity is a qualification, not a footnote. If you've spent years trying to convince a doctor something is wrong, you understand the problem this tool is trying to solve better than most.
+Everyone. Lived experience of diagnostic complexity is a qualification, not a footnote. If you've spent years trying to figure out what is wrong, or trying to organize your data so that a doctor can see the patterns you do, you understand the problem this tool is trying to solve better than most.
 
 Specific areas where help is genuinely needed:
 
