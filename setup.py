@@ -119,9 +119,6 @@ def create_config():
     config["secret_key"] = existing.get("secret_key") or secrets.token_hex(32)
     # API token for the phone companion apps (health-sync, flare-status endpoints)
     config["api_token"] = existing.get("api_token") or secrets.token_hex(32)
-    # Preserve passcode if set
-    if existing.get("passcode"):
-        config["passcode"] = existing["passcode"]
 
     with open(CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=2)
@@ -131,8 +128,7 @@ def create_config():
         print(f"\nAPI token generated for health-sync endpoint:")
         print(f"  {config['api_token']}")
         print("  (enter this in the sardinessync or sardinesync-android app)")
-    print("\nOptional: add \"passcode\": \"yourpin\" to config.json to require")
-    print("a login passcode to access the app (useful on shared networks).")
+    print("\nNext: python create_user.py --admin creates your login.")
     return config
 
 
