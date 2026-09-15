@@ -6,9 +6,7 @@ Built for people who need to see patterns in their own data when the medical sys
 
 (Well, built for one person who needed to see patterns, but she figured she couldn't be the only nut out there.)
 
-> **Note:** This is the public codebase of what was originally released as `biotracking`, briefly `sardine-track`, and now named **sardinetracker** (a SARDs pun — "systemic autoimmune rheumatic disease," plus a tracker that sticks with you — matching [sardinetracker.com](https://sardinetracker.com)). The GitHub renames keep the old URLs as redirects, so existing links still work. Active experimentation continues in a private fork that may push features back upstream when they prove out. The phone companions live in their own repos: **[sardinessync](https://github.com/alaricmoore/sardinessync)** (iOS/Apple Health) and **[sardinesync-android](https://github.com/alaricmoore/sardinesync-android)** (Android/Health Connect — for anyone whose wearable isn't an Apple Watch). Want to know how your data is stored and how it gets to your phone? See the [remote access guide](REMOTE_ACCESS.md).
->
-> **About the family-instance framing:** the app supports multiple users and was originally built hoping family with shared genetic risk might want to track alongside. In practice the daily-entry burden has kept adoption to one. Multi-user plumbing is preserved — if a family member or friend does decide to try, they can register their own account on the same instance without affecting anyone else's data.
+The name is a pun on SARDs, systemic autoimmune rheumatic diseases, and it was originally released as `biotracking` (old GitHub links still redirect). It supports more than one account, so family or friends can track on the same instance, each with their own records. Active experimentation happens in a private fork, and features come back here once they prove out.
 
 ---
 
@@ -94,8 +92,6 @@ git clone https://github.com/alaricmoore/sardinetracker.git
 cd sardinetracker
 ```
 
-> The repo was formerly named `biotracking`, then `sardine-track`; the old URLs still redirect. If you want the iOS companion as well, the Swift sources live in a separate repo: [github.com/alaricmoore/sardinessync](https://github.com/alaricmoore/sardinessync).
-
 ### Step 3: Set Up the Application
 
 Open Terminal (Mac/Linux) or Command Prompt (Windows), navigate to the sardinetracker folder, and run:
@@ -147,7 +143,7 @@ Local:  http://localhost:5000
 Phone:  connect to same wifi, visit http://<your-ip>:5000
 ```
 
-> **A note on the name:** internally, the code still calls itself `biotracking` in a lot of places (module docstrings, the `biotracking.db` filename, some comments). That was the project's original name before it became `sardinetracker`. It's left alone on purpose — renaming every occurrence is churn without benefit, and the database file in particular would break existing installs if renamed. User-facing surfaces (this banner, script output, `--help` text) say `sardinetracker`.
+> You'll still see the old name `biotracking` inside the code and in the database filename, `biotracking.db`. That's deliberate: renaming the file would break existing installs.
 
 Open your browser and go to `http://localhost:5000`. Try adding today's entry to make sure everything works.
 
@@ -169,17 +165,18 @@ Bookmark it for easy access.
 
 ---
 
----
+## Where to Next
 
-## Importing Your Data
-
-Already have data in Apple Health, a spreadsheet, or a pile of lab results? **[IMPORTING.md](IMPORTING.md)** walks through each importer, plus backfilling historical UV.
-
----
-
-## Using It
-
-The **[help guide](help.md)** covers daily logging, the forecast and the Forecast Lab, interventions, search, notifications and backups. The same guide is in the app under **help**.
+| Doc | What's in it |
+|---|---|
+| **[help.md](help.md)** | Using the app day to day: what to log, the forecast and Forecast Lab, interventions, notifications, backups. Also in the app under **help**. |
+| **[FEATURES.md](FEATURES.md)** | Everything it does, one area at a time |
+| **[IMPORTING.md](IMPORTING.md)** | Bringing in Apple Health exports, cycle data, a spreadsheet tracker, lab results, and historical UV |
+| **[MODEL.md](MODEL.md)** | How the flare score is calculated, every category and the research behind it (also in the app at `/model/docs`) |
+| **[REMOTE_ACCESS.md](REMOTE_ACCESS.md)** | Reaching your instance from outside the house, and hardening it before you do |
+| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | Triage for a deployed instance, when the site won't load or a device stops syncing |
+| **[WHY.md](WHY.md)** | The story behind the project |
+| **[DEVELOPING.md](DEVELOPING.md)** | The code map, tests and project structure, for people changing the code |
 
 ---
 
@@ -230,23 +227,6 @@ Make sure phone and computer are on the same WiFi. Verify the app is running. Tr
 You're not in the virtual environment. Run `source .venv/bin/activate` (Mac/Linux) or `.venv\Scripts\activate` (Windows) first.
 
 ---
-
-## How the Flare Prediction Model Works
-
-The flare prediction model is a transparent, statistical approach. No black box — you can see exactly how every prediction is made, and tune it yourself.
-
-Each day receives a risk score (0-25) based on UV dose (same-day and 4-day cumulative with flattened decay weights), physical overexertion, temperature elevation, individual symptoms with laddered pain/fatigue contributions, and four multi-day predictors:
-
-- **Symptom burden delta** — how many more symptom categories are active than your personal 14-day baseline. Flares build; they don't appear from nowhere. Originally the model's strongest single predictor.
-- **RMSSD baseline deviation** — 7-day rolling vagal tone vs 30-day baseline. A sustained drop in parasympathetic activity (measured via Apple Watch RR-interval data) precedes inflammatory flares. Mechanistically grounded in the cholinergic anti-inflammatory pathway; empirically replicates Thanou 2016's ΔRMSSD-ΔSLEDAI finding.
-- **RMSSD instability** — mean day-to-day |ΔRMSSD| over prior 5 days vs 30-day baseline. Captures autonomic *chaos* before major flares — RMSSD oscillates wildly (surge/crash/surge/collapse) rather than simply drifting down. Independent signal from the level-based deviation; both can fire together.
-- **Respiratory rate baseline deviation** — 3-day rolling rate vs 14-day baseline. ICU-literature-motivated (Barfod 2017); validation on personal data is ongoing via the dashboard chart.
-
-All four multi-day predictors use baseline-relative scoring rather than raw values, because chronic daily symptoms become constant offsets that don't distinguish flare days from non-flare days.
-
-**Threshold**: score ≥ 8.0 = flare risk (default; tunable). All weights are tunable in the Forecast Lab. Major flare recall is tracked as the primary performance metric since function-limiting flares are the ones that matter most to catch.
-
-For full details on every scoring category, the math behind multi-day context injection, severity-specific trajectory analysis, and relevant literature (Thanou 2016, Poliwczak 2017, Barfod 2017, Huston & Tracey 2011), see **[MODEL.md](MODEL.md)** (rendered in-app at `/model/docs`).
 
 ## For Developers
 
