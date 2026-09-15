@@ -10,6 +10,34 @@ Everything here is organized by **what you actually see first**, not by which co
 failed. That's deliberate: several very different faults present as "the site is down", and
 the fastest way out is to tell them apart before you start fixing.
 
+Haven't deployed yet? Start with [First run, on your own computer](#first-run-on-your-own-computer);
+the rest of this guide is for an instance that's already running on a server.
+
+## First run, on your own computer
+
+Problems that show up while you're installing, before any of the networking below exists.
+
+**"Port 5000 is already in use."** Common on macOS, where AirPlay Receiver uses port 5000.
+Turn AirPlay Receiver off in System Settings, or edit `app.py`, change `port=5000` to
+`port=5001`, and visit `http://localhost:5001`.
+
+**The login page won't accept anything.** `setup.py` doesn't create an account. Make one:
+
+```bash
+python create_user.py --admin
+```
+
+**"No module named ..." when you start the app.** You're not in the virtual environment.
+Run `source .venv/bin/activate` (Mac/Linux) or `.venv\Scripts\activate` (Windows) first.
+
+**UV data shows all zeros.** Check your longitude sign: in North America it's negative
+(Oklahoma City is `35.4676, -97.5164`). Fix it in `config.json`, then run
+`python backfill_uv.py --force`.
+
+**Can't reach it from your phone.** The phone and computer need to be on the same WiFi, the
+app has to be running, and the address starts with `http://`, not `https://`. Check that no
+firewall is blocking port 5000.
+
 ## Placeholders
 
 Substitute your own values throughout. Where an address appears, `x` stands in for a digit.

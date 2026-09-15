@@ -145,7 +145,7 @@ Phone:  connect to same wifi, visit http://<your-ip>:5000
 
 > You'll still see the old name `biotracking` inside the code and in the database filename, `biotracking.db`. That's deliberate: renaming the file would break existing installs.
 
-Open your browser and go to `http://localhost:5000`. Try adding today's entry to make sure everything works.
+Open your browser and go to `http://localhost:5000`. Try adding today's entry to make sure everything works. If something's off, see [first-run troubleshooting](TROUBLESHOOTING.md#first-run-on-your-own-computer).
 
 ---
 
@@ -174,7 +174,7 @@ Bookmark it for easy access.
 | **[IMPORTING.md](IMPORTING.md)** | Bringing in Apple Health exports, cycle data, a spreadsheet tracker, lab results, and historical UV |
 | **[MODEL.md](MODEL.md)** | How the flare score is calculated, every category and the research behind it (also in the app at `/model/docs`) |
 | **[REMOTE_ACCESS.md](REMOTE_ACCESS.md)** | Reaching your instance from outside the house, and hardening it before you do |
-| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | Triage for a deployed instance, when the site won't load or a device stops syncing |
+| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | First-run problems (port in use, can't log in, UV all zeros), then triage for a deployed instance |
 | **[WHY.md](WHY.md)** | The story behind the project |
 | **[DEVELOPING.md](DEVELOPING.md)** | The code map, tests and project structure, for people changing the code |
 
@@ -205,26 +205,6 @@ python create_user.py --list     # see who has an account
 **"Remember me" lasts a year** on that browser. On a borrowed or shared device, leave it unticked and log out when you're done.
 
 **Exposing the app to the internet?** A login alone isn't enough; the form doesn't limit guesses. Read the "Harden the app itself" section of [REMOTE_ACCESS.md](REMOTE_ACCESS.md) first.
-
----
-
-## Troubleshooting
-
-**"Port 5000 is already in use"** (common on macOS which uses 5000 for AirPlay)
-
-Edit `app.py` and change `port=5000` to `port=5001`, then visit `http://localhost:5001`.
-
-**UV data shows all zeros**
-
-Check your longitude sign. North America longitudes should be negative (e.g., Oklahoma City: `35.4676, -97.5164`). Edit `config.json` and run `python backfill_uv.py --force`.
-
-**Can't access from phone**
-
-Make sure phone and computer are on the same WiFi. Verify the app is running. Try `http://` not `https://`. Check there's no firewall blocking port 5000.
-
-**"No module named 'pandas'"**
-
-You're not in the virtual environment. Run `source .venv/bin/activate` (Mac/Linux) or `.venv\Scripts\activate` (Windows) first.
 
 ---
 
