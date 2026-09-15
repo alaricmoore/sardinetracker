@@ -16,5 +16,7 @@
   "app_version": "2.0.0",
   "debug": false,
   "secret_key": "generate-a-random-hex-string-here",
-  "api_token": "generate-a-different-random-hex-string-here"
+  "api_token": "generate-a-different-random-hex-string-here",
+  "allow_bearer": true,
+  "api_clients": {}
 }

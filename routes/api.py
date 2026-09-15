@@ -4,7 +4,6 @@ backup export and restore, and chart data.
 """
 
 from scoring import UNCALIBRATED_RMSSD_BOUNDS, calibrate_rmssd_bounds, rmssd_is_implausible
-import hmac
 import json
 import os
 from datetime import date, datetime, timedelta
@@ -14,41 +13,31 @@ import db
 import zipfile
 from typing import Dict
 
+from apiauth import require_client, user_denied
 from appcore import CONFIG, DATA_DIR, app, csrf, get_location_key, uid
 from flaremodel import CUSTOM_WEIGHTS_PATH, _inject_scoring_context, calculate_flare_prime_score, get_contributing_factors, get_current_weights, get_risk_level
 from routes.reports import _build_backup_zip
 
 
-def _bearer_matches(auth: str, token: str) -> bool:
-    """True if an Authorization header carries exactly `token` as a Bearer token.
-
-    compare_digest takes the same time however much of a guess is right, so
-    response timing cannot be used to recover a token one character at a time.
-    Compared as bytes, so a header with non-ASCII characters is simply a
-    mismatch rather than an error.
-    """
-    return auth.startswith("Bearer ") and hmac.compare_digest(
-        auth[7:].encode("utf-8"), token.encode("utf-8"))
-
-
 @app.route("/api/backup/export")
 @csrf.exempt
+@require_client("backup", behind_login=True)
 def api_backup_export():
-    """Token-authenticated backup export (no session), for programmatic hosts
-    like the Android local app. Auth mirrors /api/health-sync."""
-    token = CONFIG.get("api_token")
-    if not token:
-        return jsonify({"error": "api_token not configured"}), 500
-    auth = request.headers.get("Authorization", "")
-    if not _bearer_matches(auth, token):
-        return jsonify({"error": "unauthorized"}), 401
+    """Backup export for programmatic hosts like the Android local app.
 
+    Auth: a client with the backup permit (see apiauth.py). The route stays
+    behind the login gate, so without a browser session it is reachable only
+    in single_user_mode.
+    """
     user_id = request.args.get("user_id", type=int)
     if user_id is None:
         sole = db.get_sole_user()
         if not sole:
             return jsonify({"error": "user_id required on multi-user servers"}), 400
         user_id = sole["id"]
+    denied = user_denied(user_id)
+    if denied:
+        return denied
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return send_file(
@@ -59,26 +48,33 @@ def api_backup_export():
     )
 
 
+# A whole record with its documents. Only signed requests are bounded this way;
+# the body is read to hash it.
+_RESTORE_MAX_BODY = 1024 * 1024 * 1024
+
+
 @app.route("/api/backup/restore", methods=["POST"])
 @csrf.exempt
+@require_client("backup", max_body=_RESTORE_MAX_BODY, behind_login=True)
 def api_backup_restore():
     """Full-replace restore from a backup zip. Deliberately refuses to run on
     multi-user servers — replacing the shared database is not any one user's
-    call; use import_backup.py there. Auth mirrors /api/health-sync.
+    call; use import_backup.py there.
+
+    Auth: a client with the backup permit (see apiauth.py), behind the login
+    gate like the export.
 
     config.json from the backup is merged, not swapped: the running install
     keeps its own secret_key / api_token / single_user_mode (swapping those
     live would break the session and the sync bridge), takes the rest, and
     the merged values apply on next restart (CONFIG is read at startup).
     """
-    token = CONFIG.get("api_token")
-    if not token:
-        return jsonify({"error": "api_token not configured"}), 500
-    auth = request.headers.get("Authorization", "")
-    if not _bearer_matches(auth, token):
-        return jsonify({"error": "unauthorized"}), 401
     if not CONFIG.get("single_user_mode"):
         return jsonify({"error": "restore only runs on single-user servers"}), 403
+    sole = db.get_sole_user()
+    denied = user_denied(sole["id"]) if sole else None
+    if denied:
+        return denied
 
     from io import BytesIO
     if "backup" in request.files:
@@ -195,22 +191,15 @@ def _rmssd_bounds_for_user(user_id: int) -> dict:
 
 @app.route("/api/health-sync", methods=["POST"])
 @csrf.exempt
+@require_client("health_sync")
 def api_health_sync():
     """Accept health data from the phone companion apps or other programmatic sources.
 
-    Auth: Bearer token from config.json["api_token"].
+    Auth: a client with the health_sync permit (see apiauth.py).
     Body: JSON with user_id (required), date (optional, defaults to today),
           and any subset of: steps, hrv, resting_heart_rate, basal_temp_delta,
           sun_exposure_min.
     """
-    # --- auth ---
-    token = CONFIG.get("api_token")
-    if not token:
-        return jsonify({"error": "api_token not configured"}), 500
-    auth = request.headers.get("Authorization", "")
-    if not _bearer_matches(auth, token):
-        return jsonify({"error": "unauthorized"}), 401
-
     # --- parse body ---
     body = request.get_json(silent=True)
     if not body:
@@ -220,15 +209,18 @@ def api_health_sync():
     if not user_id:
         return jsonify({"error": "user_id is required"}), 400
 
-    # Validate user exists
     try:
         user_id = int(user_id)
-        with db.get_db() as conn:
-            user = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
-        if not user:
-            return jsonify({"error": f"user_id {user_id} not found"}), 404
     except (ValueError, TypeError):
         return jsonify({"error": "user_id must be an integer"}), 400
+    # Before the existence check, so a client can't probe which user ids exist.
+    denied = user_denied(user_id)
+    if denied:
+        return denied
+    with db.get_db() as conn:
+        user = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        return jsonify({"error": f"user_id {user_id} not found"}), 404
 
     obs_date = body.get("date", date.today().isoformat())
     # Validate date format
@@ -342,10 +334,13 @@ def _veml6075_sample_is_bad(uva: int, uvb: int, comp1: int, comp2: int) -> bool:
 
 @app.route("/api/uv/ingest", methods=["POST"])
 @csrf.exempt
+@require_client("uv_ingest")
 def api_uv_ingest():
     """Accept a CSV tail from the uv-wearable device.
 
-    Auth: Bearer token from config.json["wearable_token"].
+    Auth: a client with the uv_ingest permit (see apiauth.py). A device with no
+          clock signs its boot id and uptime counter; X-Boot-Id and X-Device-Ms
+          below are covered by that signature.
     Body (text/csv): one row per line, two formats:
         sample:  boot_id,ms_since_boot,uva,uvb,comp1,comp2,batt_mv
         event:   boot_id,ms_since_boot,EVENT,<label>
@@ -355,16 +350,12 @@ def api_uv_ingest():
     Rows from the current boot get an absolute ts derived from request arrival
     minus device-clock skew. Rows from older boots store ts=NULL.
     """
-    token = CONFIG.get("wearable_token")
-    if not token:
-        return jsonify({"error": "wearable_token not configured"}), 500
-    auth = request.headers.get("Authorization", "")
-    if not _bearer_matches(auth, token):
-        return jsonify({"error": "unauthorized"}), 401
-
     user_id = CONFIG.get("wearable_user_id")
     if not user_id:
         return jsonify({"error": "wearable_user_id not configured"}), 500
+    denied = user_denied(user_id)
+    if denied:
+        return denied
 
     try:
         current_boot = int(request.headers.get("X-Boot-Id", "-1"))
@@ -503,16 +494,12 @@ def api_health_sync_recent():
 
 @app.route("/api/flare-status")
 @csrf.exempt
+@require_client("flare_status")
 def api_flare_status():
-    """JSON flare status for iOS companion app."""
-    # --- auth (same pattern as health-sync) ---
-    token = CONFIG.get("api_token")
-    if not token:
-        return jsonify({"error": "api_token not configured"}), 500
-    auth = request.headers.get("Authorization", "")
-    if not _bearer_matches(auth, token):
-        return jsonify({"error": "unauthorized"}), 401
+    """JSON flare status for the phone companion apps.
 
+    Auth: a client with the flare_status permit (see apiauth.py).
+    """
     user_id = request.args.get("user_id")
     if not user_id:
         return jsonify({"error": "user_id required"}), 400
@@ -520,6 +507,9 @@ def api_flare_status():
         user_id = int(user_id)
     except (ValueError, TypeError):
         return jsonify({"error": "user_id must be an integer"}), 400
+    denied = user_denied(user_id)
+    if denied:
+        return denied
 
     # --- load observations ---
     all_obs = db.get_all_daily_observations(user_id)

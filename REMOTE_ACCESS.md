@@ -415,7 +415,7 @@ Everything here uses settings and code you already have. Work through it before 
 chmod 600 config.json
 ```
 
-**Know what each token opens.** `api_token` opens health sync (writes daily biometrics) and flare status (reads your current flare score). With `single_user_mode` on, it also opens backup export, which downloads the whole record, and backup restore, which replaces the whole database. `wearable_token` opens only UV ingest. Neither token is tied to one account: whoever holds `api_token` can name any `user_id`. Treat it like a password to your data, not like a sync setting.
+**Know what each token opens.** `api_token` opens health sync (writes daily biometrics) and flare status (reads your current flare score). With `single_user_mode` on, it also opens backup export, which downloads the whole record, and backup restore, which replaces the whole database. `wearable_token` opens only UV ingest. Neither token is tied to one account: whoever holds `api_token` can name any `user_id`. Treat it like a password to your data, not like a sync setting. [Signed requests](#use-signed-requests-instead-of-a-shared-token), below, fix both problems.
 
 **Replace a token that may have leaked.** Pasted into a chat, visible in a screenshot, sitting in a log: make a new one.
 
@@ -440,6 +440,53 @@ Paste the output over the old value in `config.json`, restart the app, and put t
 **Portal links are keys.** Anyone holding a clinician link sees the record until the link expires (30 days by default) or you revoke it at `/portals`. Send links the way you'd send a medical record, and revoke them when the appointment is over.
 
 **If you built the UV wearable:** the prototype firmware doesn't check the server's certificate, so on a shared or public WiFi network someone could pose as your server and collect `wearable_token`. Sync it only on networks you trust. The token opens nothing but UV ingest, which limits the damage.
+
+### Use signed requests instead of a shared token
+
+A bearer token travels with every request, so anyone who sees a single one (in a proxy log, a crash report, traffic on shared WiFi) holds the key until you replace it. And one token opens everything it opens, for every account.
+
+Signed clients fix all of that. Each device or script gets its own name and its own secret, and the secret never leaves the device. Instead, each request carries a signature made from it: an HMAC-SHA256 over the method, the path, the query, a timestamp, a one-time random value and the body. The server checks the signature with its own copy of the secret. A captured request can't be edited, because the signature would no longer match, and it can't be replayed, because the server refuses timestamps more than five minutes off and remembers every one-time value for that long.
+
+Each client also gets only the permits it needs, and only the accounts it may act for:
+
+| Permit | Opens |
+|---|---|
+| `health_sync` | `POST /api/health-sync`: writes daily biometrics |
+| `flare_status` | `GET /api/flare-status`: reads the current flare score |
+| `uv_ingest` | `POST /api/uv/ingest`: UV wearable readings |
+| `backup` | backup export and restore, in `single_user_mode` only |
+
+**Set one up.** On the machine running sardinetracker:
+
+```bash
+python api_clients.py new sardinessync health_sync flare_status --user 1
+```
+
+It prints an entry with a fresh secret, and writes nothing. Paste the entry inside `"api_clients"` in `config.json`, next to any other clients and separated from them by a comma:
+
+```json
+"api_clients": {
+  "sardinessync": {"secret": "...", "permits": ["flare_status", "health_sync"], "user_ids": [1]}
+}
+```
+
+Check the file is still valid JSON, then restart the app, since `config.json` is only read at startup:
+
+```bash
+python3 -m json.tool config.json > /dev/null && echo ok
+```
+
+Then give the client its name and secret. The iOS app, [sardinessync](https://github.com/alaricmoore/sardinessync), has **Client ID** and **Client secret** fields in Settings, and signs every request once both are set. The Android app still uses `api_token` for now.
+
+**When a client can't get in**, the client only ever sees a plain `401`, so someone guessing learns nothing. The server's log says why. Look for lines containing `api auth refused`:
+
+- `unknown client`: that name isn't in `api_clients`. Check the spelling, check the entry sits directly inside `"api_clients"` and not inside another client's braces, and check the app was restarted after the edit.
+- `signature mismatch`: the secret on the client differs from the one in `config.json`.
+- a timestamp message: the device's clock is more than five minutes off.
+
+A `403` is different: the client got in but lacks the permit, or isn't allowed to act for that account, and the response says which.
+
+**Retire the shared tokens.** Once every client signs, add `"allow_bearer": false` to `config.json` and restart. `api_token` and `wearable_token` then stop working, whatever their values. Until you do, they keep opening exactly what they opened before.
 
 ### Add another auth layer if you can
 
@@ -535,9 +582,9 @@ It then runs automatically in the background overnight. Flare alerts and medicat
 
 **[sardinesync-android](https://github.com/alaricmoore/sardinesync-android)** reads Health Connect, so it works with any wearable that writes there (Fitbit, Garmin, Samsung, Oura, Pixel Watch), not just an Apple Watch. It sends the same fields to `/api/health-sync`. Setup lives in that repo's README.
 
-### Both apps use `api_token`
+### Credentials for the apps
 
-The token in each app can write your biometrics and read your flare score. See [Harden the app itself](#harden-the-app-itself) for everything it opens and how to replace it.
+The iOS app can sign its requests with a client secret of its own; see [Use signed requests instead of a shared token](#use-signed-requests-instead-of-a-shared-token). The Android app uses `api_token` for now. Either credential can write your biometrics and read your flare score, so treat it like a password. [Harden the app itself](#harden-the-app-itself) covers what the token opens and how to replace it.
 
 ---
 

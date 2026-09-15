@@ -88,8 +88,8 @@ nothing to the other two.
 |---|---|---|---|
 | You | Access identity + MFA, then the Flask login | nothing | Access policy, or change the password |
 | Clinicians | capability token in the URL, time-limited, logged | Access **and** the Flask login | `/portals` → revoke |
-| Phone apps | `api_token` bearer header | Access **and** the Flask login | rotate in `config.json`, re-enter on each device |
-| A device / wearable | `wearable_token` bearer header | Access **and** the Flask login | rotate in `config.json`, then reflash the device |
+| Phone apps | a signed client from `api_clients`, or the `api_token` bearer header until it's retired | Access **and** the Flask login | remove the client's entry and restart; or rotate `api_token` and re-enter it on each device |
+| A device / wearable | a signed counter client, or the `wearable_token` bearer header | Access **and** the Flask login | remove the client's entry and restart; or rotate `wearable_token`, then reflash the device |
 
 ## A — the site won't load
 
@@ -226,6 +226,18 @@ Two different faults produce the same silence, and the logs tell them apart.
 
 3. If it's only one device, suspect the device before the server — especially anything with
    flaky WiFi or no real-time clock. Check when its last ingest actually landed.
+
+4. **A 401 the device can't explain?** The server logs the reason; the device never sees it.
+
+   ```bash
+   journalctl -u <your-service> --since "1 hour ago" | grep "api auth refused"
+   ```
+
+   `unknown client` means the name isn't in `api_clients` (a misspelling, an entry pasted
+   inside another client's braces, or no restart since the edit). `signature mismatch` means
+   the secrets differ. A timestamp message means the device's clock has drifted more than five
+   minutes. A **403** is the client getting in without the right permit or account, and its
+   response says which.
 
 ## The cold check
 

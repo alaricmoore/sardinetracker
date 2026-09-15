@@ -147,7 +147,13 @@ def load_user(user_id):
 @app.before_request
 def require_login():
     """Redirect unauthenticated users to login page."""
-    if request.endpoint in ('login', 'register', 'static', 'favicon_files', 'api_health_sync', 'api_flare_status', 'api_uv_ingest', 'portal_view', 'portal_section', 'portal_document'):
+    # Endpoints that authenticate themselves: the portal routes carry a
+    # capability token, and API views wrapped in apiauth.require_client mark
+    # themselves. Anything else is session-gated.
+    if request.endpoint in ('login', 'register', 'static', 'favicon_files',
+                            'portal_view', 'portal_section', 'portal_document'):
+        return
+    if getattr(app.view_functions.get(request.endpoint), 'authenticates_itself', False):
         return
     if not current_user.is_authenticated:
         # Single-user mode (a server that belongs to exactly one person, e.g.

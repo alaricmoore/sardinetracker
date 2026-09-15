@@ -251,7 +251,7 @@ See the sardinessync repo's README for the full setup walkthrough. The short ver
 
 ### A note about your API token
 
-The token in the app can write your biometrics and read your flare score. Treat it like a password, and don't paste it anywhere you wouldn't paste your sardinetracker login. If it may have leaked, the remote access guide explains how to replace it.
+Whatever the app uses to reach the server, an API token or a client secret for signed requests, can write your biometrics and read your flare score. Treat it like a password, and don't paste it anywhere you wouldn't paste your sardinetracker login. If it may have leaked, the remote access guide explains how to replace it.
 
 ---
 

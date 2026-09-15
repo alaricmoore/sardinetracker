@@ -229,6 +229,32 @@ def run_migrations() -> int:
             """)
             applied += 1
 
+        # ---- api_nonces, api_counters (added for signed API requests) ----
+        # Replay protection. A nonce is kept for the length of the timestamp
+        # window: anything older is already refused by its timestamp. A device
+        # with no clock keeps only its highest (boot_id, device_ms) instead.
+        if _table_missing(c, "api_nonces"):
+            c.execute("""
+                CREATE TABLE api_nonces (
+                    client_id  TEXT NOT NULL,
+                    nonce      TEXT NOT NULL,
+                    seen_at    INTEGER NOT NULL,
+                    PRIMARY KEY (client_id, nonce)
+                )
+            """)
+            c.execute("CREATE INDEX IF NOT EXISTS idx_api_nonces_seen ON api_nonces(seen_at)")
+            applied += 1
+
+        if _table_missing(c, "api_counters"):
+            c.execute("""
+                CREATE TABLE api_counters (
+                    client_id  TEXT PRIMARY KEY,
+                    boot_id    INTEGER NOT NULL,
+                    device_ms  INTEGER NOT NULL
+                )
+            """)
+            applied += 1
+
     return applied
 
 
@@ -1715,3 +1741,33 @@ def delete_taper_schedule(user_id: int, schedule_id: int) -> None:
     with get_db() as conn:
         conn.execute("DELETE FROM taper_schedules WHERE id = ? AND user_id = ?",
                      (schedule_id, user_id))
+
+
+# ============================================================
+# Signed API requests: replay protection
+# ============================================================
+
+def remember_api_nonce(client_id: str, nonce: str, now: int, window: int) -> bool:
+    """Record a nonce. True if it is new, False if this client already used it
+    inside the window. Expired nonces are cleared on the way."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM api_nonces WHERE seen_at < ?", (now - window,))
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO api_nonces (client_id, nonce, seen_at) VALUES (?, ?, ?)",
+            (client_id, nonce, now))
+        return cur.rowcount == 1
+
+
+def advance_api_counter(client_id: str, boot_id: int, device_ms: int) -> bool:
+    """Move a clockless client's counter forward. True if (boot_id, device_ms)
+    is above the last pair seen from it (or it is the first), else False."""
+    with get_db() as conn:
+        cur = conn.execute("""
+            INSERT INTO api_counters (client_id, boot_id, device_ms) VALUES (?, ?, ?)
+            ON CONFLICT (client_id) DO UPDATE
+               SET boot_id = excluded.boot_id, device_ms = excluded.device_ms
+             WHERE excluded.boot_id > api_counters.boot_id
+                OR (excluded.boot_id = api_counters.boot_id
+                    AND excluded.device_ms > api_counters.device_ms)
+        """, (client_id, boot_id, device_ms))
+        return cur.rowcount == 1

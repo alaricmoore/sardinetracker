@@ -21,6 +21,8 @@ python -m pytest
 | `flaremodel.py` | The flare model's shared scoring layer: weights, multi-day context, cycle detection, the flare score. Pages, the API and reminders all use it, so it lives in none of them |
 | `scoring.py` | Pure scoring primitives. No database, no Flask, no I/O, so it's safe to import from anywhere |
 | `reminders.py` | ntfy notifications and scheduled jobs. Importing it starts the scheduler |
+| `apiauth.py` | Who is calling the API: the `require_client` decorator, permits, user binding, legacy bearer tokens |
+| `api_signing.py` | How a request is signed. Standard library only, so Python clients can copy it |
 | `routes/` | The pages and API, one module per area of the app. Importing a module registers its URLs |
 
 Two rules hold across all of them: **data access goes through `db.py`**, and **UV fetching goes through `uv_fetcher.py`**.
@@ -45,11 +47,12 @@ Two fixtures do most of the work: `fresh_db`, an empty migrated database of the 
 | `test_flaremodel.py` | The scoring layer, on a throwaway data folder |
 | `test_safety.py` | Rules that must keep holding: the clinician portal is read-only, every page needs a login except `PUBLIC_ENDPOINTS`, API tokens are checked properly, login only redirects within the site |
 | `test_own_data_only.py` | Deleting and downloading an account touch only that account's data |
+| `test_api_auth.py` | Signed requests: the wire format's known-answer vectors, refusals, replay, permits, counter clients, backups, legacy bearer tokens |
 | `test_lab_import.py` | Lab CSV import, in the app and on the command line |
 
 A few tests are marked `xfail`: each one records a place where the code and its docstring disagree, waiting on a decision about which is right.
 
-**Adding a public endpoint** (one reachable without logging in) means adding it to `PUBLIC_ENDPOINTS` in `tests/test_safety.py` on purpose, or the safety tests fail.
+**Adding a public endpoint** (one reachable without logging in) means adding it to `PUBLIC_ENDPOINTS` in `tests/test_safety.py` on purpose, or the safety tests fail. An API endpoint gets past the login gate by being wrapped in `@require_client("<permit>")`, which marks it; `behind_login=True` keeps it behind the gate anyway, as the backup routes do.
 
 **Refactoring?** `tests/route_snapshot.py` records what every page returns and compares two recordings, so you can show a refactor changed nothing:
 
@@ -61,6 +64,40 @@ python tests/route_snapshot.py compare /tmp/snap-before /tmp/snap-after
 ```
 
 It works on a copy of the database, never the file you point it at.
+
+## Signed API requests
+
+Machine clients (the phone apps, the UV wearable, scripts) authenticate to `/api/*` with signed requests; REMOTE_ACCESS.md explains why and how to set one up. This is the wire format, for anyone writing a client.
+
+A signed request carries these headers:
+
+| Header | Value |
+|---|---|
+| `X-Client-Id` | the client's name in `api_clients` |
+| `X-Timestamp` | Unix time in whole seconds |
+| `X-Nonce` | 16–64 random characters from `A-Z a-z 0-9 _ -` |
+| `X-Signature` | lowercase hex HMAC-SHA256 of the string below, keyed with the secret as UTF-8 text (not hex-decoded) |
+
+The string to sign is eight lines joined with `\n`, with no trailing newline:
+
+```
+TR1                          version tag
+POST                         method, upper case
+/api/health-sync             path, no query
+user_id=1                    query string, canonical (below); an empty line if none
+sardinessync                 client id
+1789430400                   timestamp
+k3J9...                      nonce
+e3b0c442...                  lowercase hex SHA-256 of the raw body (of b"" if none)
+```
+
+**Canonical query:** split on `&` and drop empty parts, split each part on the first `=`, percent-decode both halves (`+` is a space), re-encode as UTF-8 leaving only `A-Z a-z 0-9 - _ . ~` bare, sort the pairs by key then value, and join as `k=v` with `&`. So `b=x+y&a=%7e&c=` becomes `a=~&b=x%20y&c=`.
+
+The server answers **401**, always with the same body, for a missing or malformed header, an unknown client, a bad signature, a timestamp more than 300 seconds from its clock, or a nonce that client already used inside that window. The reason goes to the server log. It answers **403**, with the reason in the body, when a correctly signed client lacks the endpoint's permit or isn't bound to the `user_id` it names.
+
+**Clients with no clock** (`"clock": "counter"` in their entry) send `X-Boot-Id` and `X-Device-Ms` instead of `X-Timestamp` and `X-Nonce`. Line 6 becomes `<boot_id>.<device_ms>` and line 7 is empty. The server keeps the last pair per client and accepts only a strictly larger one.
+
+`api_signing.py` is the reference signer. Before a new port talks to a server, it should reproduce the known-answer vectors in `tests/test_api_auth.py`; the iOS app's `RequestSigner.swift` is checked against the same vectors.
 
 ## Project structure
 
@@ -76,6 +113,9 @@ sardinetracker/
 ├── summarize.py                # Deterministic digest of one day's flare context
 ├── setup.py                    # First-run DB schema and config.json
 ├── create_user.py              # CLI for creating and listing accounts
+├── apiauth.py                  # API client authentication, permits and user binding
+├── api_signing.py              # Signed request wire format (TR1)
+├── api_clients.py              # CLI that prints a new api_clients entry with a fresh secret
 ├── routes/                     # Pages and API, one module per area of the app
 │   ├── admin.py                # Login, registration, settings, help pages, admin
 │   ├── api.py                  # Token-authenticated JSON API: health sync, UV ingest, flare status, backups
