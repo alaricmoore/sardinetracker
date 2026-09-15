@@ -117,26 +117,36 @@ def logout():
 @app.route("/delete/all-data", methods=["POST"])
 def delete_all_data():
     """
-    NUCLEAR OPTION: Delete ALL tracking data.
-    This is irreversible and should only be called after multiple confirmations.
+    Delete the current user's account and all their tracking data.
+    Irreversible — gated by a typed confirmation in the UI.
+
+    This used to delete the whole database file and recreate it empty, which on
+    a shared instance wiped every account, not just the one asking.
     """
+    import shutil
+    import routes.clinical as clinical
+
     try:
-        # Close any open connections
-        db.close_all_connections()  
-        
-        # Delete the SQLite database file
-        db_path = Path("biotracking.db")
-        if db_path.exists():
-            db_path.unlink()
-        
-        # Recreate empty database with schema
-        from setup import create_database
-        create_database()
-        
-        return jsonify({"success": True, "message": "All data deleted"}), 200
-        
+        user_id = current_user.id
+        logout_user()
+        db.delete_user(user_id)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+    # The uploaded files, only once the records are gone: removing files first
+    # would leave records pointing at missing files if the delete then failed.
+    docs_dir = os.path.join(clinical.DOCUMENTS_DIR, f"user_{user_id}")
+    try:
+        shutil.rmtree(docs_dir)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        app.logger.error("delete_all_data: records deleted but %s remains: %s", docs_dir, e)
+        return jsonify({"success": False,
+                        "error": "Your records were deleted, but the uploaded document "
+                                 "files could not be removed. Check the server log."}), 500
+
+    return jsonify({"success": True, "message": "All data deleted"}), 200
 
 
 # ============================================================

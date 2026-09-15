@@ -476,28 +476,31 @@ def search():
 # ============================================================
 
 def _build_backup_zip(user_id: int):
-    """Assemble the full-backup zip: raw database, CSVs of every user-scoped
-    table, and — in single_user_mode only, where user == server owner —
-    config.json and custom weights. Uploaded documents come along either way
-    (scoped to the requesting user)."""
+    """Assemble the full-backup zip: CSVs of every user-scoped table and the
+    requesting user's uploaded documents. In single_user_mode only, where the
+    user is the server's owner, it also carries the raw database, config.json
+    and custom weights, which is what /api/backup/restore needs.
+
+    The raw database holds every account's records, so on a shared instance it
+    is never anyone's to download from a web page. Whole-database backups
+    there are taken on the server itself."""
     from io import BytesIO
 
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Checkpoint the WAL first or the copied .db file silently misses
-        # everything written since the last checkpoint.
-        with db.get_db() as conn:
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-
-        if os.path.exists(db.DB_FILE):
-            zipf.write(db.DB_FILE, "biotracking.db")
-
         _export_csvs_to_zip(zipf, user_id)
 
         # Server-owner files: only when this server belongs to exactly the
-        # requesting user (the phone-local app). On a multi-user server,
-        # config.json holds secrets that aren't any one user's to export.
+        # requesting user (the phone-local app). On a multi-user server the
+        # database holds other people's records and config.json holds secrets,
+        # neither any one user's to export.
         if CONFIG.get("single_user_mode"):
+            # Checkpoint the WAL first or the copied .db file silently misses
+            # everything written since the last checkpoint.
+            with db.get_db() as conn:
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            if os.path.exists(db.DB_FILE):
+                zipf.write(db.DB_FILE, "biotracking.db")
             config_path = os.path.join(DATA_DIR, "config.json")
             if os.path.exists(config_path):
                 zipf.write(config_path, "config.json")

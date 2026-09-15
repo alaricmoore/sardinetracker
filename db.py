@@ -296,16 +296,26 @@ def update_user_password(user_id: int, password_hash: str) -> None:
 
 
 def delete_user(user_id: int) -> None:
-    """Delete a user and all their data across all tables."""
+    """Delete a user and all their data across all tables.
+
+    Every table with a user_id column is cleared, found from the schema rather
+    than from a list, so a table added later can't be missed. The fixed list
+    this replaces had fallen behind: clinical_documents, medication_events,
+    portal_links, uv_sensor_readings and health_sync_events weren't on it, and
+    for anyone with rows in them the delete failed on a foreign key. Rows that
+    hang off a user's rows without a user_id of their own (portal_access_log,
+    say) go with them by ON DELETE CASCADE. It all happens in one transaction:
+    if anything still refers to the user, nothing is deleted.
+
+    Uploaded document files are removed by the delete-all-data route, not here.
+    """
     with get_db() as conn:
-        # Delete from all user-scoped tables
-        for table in [
-            "daily_observations", "lab_results", "ana_results",
-            "clinical_events", "medications", "clinicians",
-            "bc_history", "taper_schedules", "scheduled_doses",
-            "user_preferences",
-        ]:
-            conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+        tables = [r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+        for table in tables:
+            columns = [r["name"] for r in conn.execute(f'PRAGMA table_info("{table}")')]
+            if "user_id" in columns:
+                conn.execute(f'DELETE FROM "{table}" WHERE user_id = ?', (user_id,))
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
 
 
