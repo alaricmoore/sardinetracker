@@ -124,6 +124,25 @@ The Model page shows you, visually, which days hit high risk and whether a flare
 
 ---
 
+## The Forecast Lab (tuning the model)
+
+The Forecast Lab is where you change how much each factor counts. Open it with the lab button on the **Forecast** or **Model** page, go to `/forecast/lab`, or search for `lab`, `help`, `manual`, `tune` or `weights`.
+
+It's a terminal-style menu. Type a key:
+
+- **1**: view the current weights
+- **2**: adjust weights: symptoms, whole categories (0 turns one off, 1 is the default, 2 doubles it), the multi-day signals, and the flare threshold
+- **3**: run a simulation, to see how accuracy, recall and precision would change, and which days would flip, before you save anything
+- **4**: view the model code, the actual Python that calculates your score
+- **5**: export your changes
+- **6**: achievements
+- **?**: the full manual
+- **X**: leave the Lab
+
+**Apply These Changes** saves the new weights to your account. **Reset to Default** puts the original weights back.
+
+---
+
 ## The Clinical Record
 
 This section is for organizing the medical side of your life — not just symptoms.
@@ -167,9 +186,40 @@ The Interventions view is for medication-attributed observations. Regular sympto
 
 ## Notifications (ntfy)
 
-The app can send you a daily reminder to log, and an alert if your flare risk is elevated. This uses a free service called ntfy — you install the ntfy app on your phone, subscribe to a private channel, and that's it. No account required.
+The app can nudge your phone: medication doses, an elevated flare risk, a missed day of logging. It uses [ntfy](https://ntfy.sh), a free, open-source push service with no account to create.
 
-Setup instructions are in your account profile.
+### Set it up
+
+1. Install the **ntfy** app on your phone (App Store or Google Play).
+2. In the app, tap **+** and subscribe to a topic. Make the name long and unguessable, like `sardines-k7x9qm3p`. **ntfy topics are public:** anyone who knows the name can read what's sent to it, so don't use your name or anything else obvious.
+3. In sardinetracker, open **Settings**, enter the same name in **ntfy topic**, and save.
+
+Each account sets its own topic, so everyone on a shared instance gets only their own notifications. If you'd rather not rely on the public ntfy.sh service, you can run your own ntfy server and put its address in the **ntfy server** field.
+
+### What you'll get
+
+| Notification | When | How often |
+|---|---|---|
+| **Medication dose** | At each scheduled dose time from the taper wizard | Once per dose |
+| **Flare risk** | Each morning, if your weighted score over the last 3 days is 5.0 or higher, or you enter the luteal / PMS phase tomorrow. At 8.0 or higher it arrives as high priority. | Once a day at most |
+| **Daily log reminder** | When it's been 12, 16, 20 or 24 hours since you last logged (you choose, in Settings; off by default) | Once a day at most |
+| **Period nudge** | If cycle tracking is on and you logged flow 4 days ago but nothing since | Once |
+| **UV data unavailable** | Early afternoon, if the day's UV index couldn't be fetched for your location, so you know to enter it by hand | Once a day at most |
+
+The flare alert needs at least 3 logged days before it can say anything.
+
+### Taper reminders
+
+1. Go to **Clinical** → **Medications** and add the medication (for example, methylprednisolone 4mg).
+2. Click **set reminders** on its row.
+3. The wizard fills in a standard 6-day Medrol dose pack (18 doses, 6 tablets on day 1 down to 1 on day 6). Change the start date, times and amounts to match what you were prescribed, or clear it and enter your own schedule.
+4. Click **activate reminders**. Today's doses also show up as a checklist on the **Daily Entry** page, to tick off as you take them.
+
+### If you run your own instance
+
+- **Notifications only go out while the app is running.** On a Raspberry Pi that's always. On a laptop that sleeps, a dose or morning alert due while the lid was closed can be missed.
+- The morning flare alert time and the afternoon UV check are set for the whole instance in `config.json`, as hours in the instance's timezone: `"flare_alert_hour": 8` and `"uv_alert_hour": 13` are the defaults. Restart the app after changing them.
+- To turn notifications off for yourself, clear your ntfy topic in Settings.
 
 ---
 
@@ -202,6 +252,42 @@ See the sardinessync repo's README for the full setup walkthrough. The short ver
 ### A note about your API token
 
 The token in the app can write your biometrics and read your flare score. Treat it like a password, and don't paste it anywhere you wouldn't paste your sardinetracker login. If it may have leaked, the remote access guide explains how to replace it.
+
+---
+
+## Searching
+
+The **Search** page looks through your daily entries, labs, clinical events and medications all at once. Results are grouped by type; click one to open it.
+
+---
+
+## Backing Up Your Data
+
+**Download your data.** On the **Search** page, under *data management*, **Download All Data** saves a zip with a CSV of each of your tables (these open in any spreadsheet) and the documents you've uploaded. It holds only your own records, even on an instance shared with other people. On a single-user instance it also includes the database file itself, `config.json` and your Forecast Lab weights.
+
+**Delete your data.** Next to it, **Delete** removes your account and everything in it, including uploaded documents, and logs you out. Nobody else's account is touched. You have to type `DELETE MY DATA` to confirm, and there is no undo, so download first.
+
+**If you run your own instance**, everything lives in the sardinetracker folder (or wherever `SARDINE_DATA_DIR` points):
+
+- `biotracking.db`: the database
+- `config.json`: settings and secrets
+- `documents/`: uploaded files
+- `config/custom_weights.json`: Forecast Lab weights, if you've saved any
+
+Copy the database with SQLite's own backup command rather than `cp`. The app writes through a side file (a write-ahead log), and a plain copy taken while it's running can miss recent entries:
+
+```bash
+sqlite3 biotracking.db ".backup biotracking_backup_$(date +%Y%m%d).db"
+```
+
+To start over from nothing, stop the app, back up first, then:
+
+```bash
+rm biotracking.db config.json
+python setup.py
+```
+
+That deletes all your data.
 
 ---
 
