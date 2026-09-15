@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Documentation &#8212; sardinetracker</title>
-<meta name="description" content="Guides for running your own sardinetracker instance: remote access, troubleshooting, and how to use the app day to day.">
-<link rel="canonical" href="https://sardinetracker.com/docs">
+<title>Importing your data &#8212; sardinetracker</title>
+<meta name="description" content="Bringing in history you already have: Apple Health exports, cycle data, a spreadsheet tracker, lab results, and backfilled UV.">
+<link rel="canonical" href="https://sardinetracker.com/docs/importing">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://sardinetracker.com/docs">
+<meta property="og:url" content="https://sardinetracker.com/docs/importing">
 <meta property="og:site_name" content="sardinetracker">
-<meta property="og:title" content="Documentation &#8212; sardinetracker">
-<meta property="og:description" content="Guides for running your own sardinetracker instance: remote access, troubleshooting, and how to use the app day to day.">
+<meta property="og:title" content="Importing your data &#8212; sardinetracker">
+<meta property="og:description" content="Bringing in history you already have: Apple Health exports, cycle data, a spreadsheet tracker, lab results, and backfilled UV.">
 <meta property="og:image" content="https://sardinetracker.com/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -105,44 +105,91 @@
   footer .links{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem;margin-bottom:16px}
   footer p{max-width:70ch}
 </style>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Documentation", "description": "Guides for running your own sardinetracker instance: remote access, troubleshooting, and how to use the app day to day.", "url": "https://sardinetracker.com/docs", "inLanguage": "en", "isPartOf": {"@type": "WebSite", "@id": "https://sardinetracker.com/#site"}, "about": {"@type": "SoftwareApplication", "@id": "https://sardinetracker.com/#app"}, "author": {"@type": "Person", "name": "Alaric Moore"}, "license": "https://www.gnu.org/licenses/agpl-3.0.html"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Importing your data", "description": "Bringing in history you already have: Apple Health exports, cycle data, a spreadsheet tracker, lab results, and backfilled UV.", "url": "https://sardinetracker.com/docs/importing", "inLanguage": "en", "isPartOf": {"@type": "WebSite", "@id": "https://sardinetracker.com/#site"}, "about": {"@type": "SoftwareApplication", "@id": "https://sardinetracker.com/#app"}, "author": {"@type": "Person", "name": "Alaric Moore"}, "license": "https://www.gnu.org/licenses/agpl-3.0.html"}</script>
 </head>
 <body>
 <header>
   <div class="wrap nav">
     <div class="wordmark"><a href="/" style="color:inherit">sardine<span>tracker</span></a></div>
-    <ul><li><a href="/docs/remote-access">remote access</a></li><li><a href="/docs/troubleshooting">troubleshooting</a></li><li><a href="/docs/help">help</a></li><li><a href="/docs/features">features</a></li><li><a href="/docs/importing">importing</a></li><li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li></ul>
+    <ul><li><a href="/docs/remote-access">remote access</a></li><li><a href="/docs/troubleshooting">troubleshooting</a></li><li><a href="/docs/help">help</a></li><li><a href="/docs/features">features</a></li><li><a class="here" href="/docs/importing">importing</a></li><li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li></ul>
   </div>
 </header>
 <main>
   <div class="wrap dochead">
     <p class="eyebrow">documentation</p>
-    <h1>Running your own instance.</h1>
-    <p>sardinetracker is meant to live on your machine, which means the parts nobody
-       else can do for you &#8212; getting to it from outside the house, and working out
-       what broke when it stops answering &#8212; are documented here rather than assumed.</p>
+    <h1>Importing your data</h1>
+    <p>Bringing in history you already have: Apple Health exports, cycle data, a spreadsheet tracker, lab results, and backfilled UV.</p>
   </div>
-  <div class="wrap"><div class="cards"><div class="card">
-      <h2>Remote access</h2>
-      <p>Reaching your own instance from outside the house &#8212; a Cloudflare Tunnel or a Tailscale VPS, with the trade-offs of each spelled out.</p>
-      <p class="go"><a href="/docs/remote-access">read &#8594;</a></p>
-    </div><div class="card">
-      <h2>Troubleshooting</h2>
-      <p>Symptom-first triage for a deployed instance. What to check, in what order, when the site won&#x27;t load or a device stops syncing.</p>
-      <p class="go"><a href="/docs/troubleshooting">read &#8594;</a></p>
-    </div><div class="card">
-      <h2>Using sardinetracker</h2>
-      <p>The in-app help, on the web: what each view is for, what the numbers mean, and how to log a day without it becoming a chore.</p>
-      <p class="go"><a href="/docs/help">read &#8594;</a></p>
-    </div><div class="card">
-      <h2>Features</h2>
-      <p>Everything the tracker does, one area at a time: daily logging, the flare model, interventions, the clinical record and the clinician portal.</p>
-      <p class="go"><a href="/docs/features">read &#8594;</a></p>
-    </div><div class="card">
-      <h2>Importing your data</h2>
-      <p>Bringing in history you already have: Apple Health exports, cycle data, a spreadsheet tracker, lab results, and backfilled UV.</p>
-      <p class="go"><a href="/docs/importing">read &#8594;</a></p>
-    </div></div></div>
+  <div class="wrap layout">
+    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#from-apple-health">From Apple Health</a></li><li><a href="#from-apple-health--menstrual-cycle-data">From Apple Health — Menstrual Cycle Data</a></li><li><a href="#from-your-own-symptom-tracker">From Your Own Symptom Tracker</a></li><li><a href="#lab-results">Lab Results</a></li><li><a href="#uv-data-backfill">UV Data Backfill</a></li></ul></nav>
+    <article class="prose"><p>Already tracking somewhere else? These scripts bring it in. Each one takes <code>--dry-run</code>, so you can see what it would do before it writes anything. Run them from the sardinetracker folder with your virtual environment active (see the <a href="https://github.com/alaricmoore/sardinetracker/blob/main/README.md">README</a>).</p>
+<h2 id="from-apple-health">From Apple Health</h2>
+<p>Sardinetracker can import HRV, sleep hours, wrist temperature, and daylight exposure from Apple Health, or whatever else you are tracking. Which provides free-of-cost raw data downloads.</p>
+<p><strong>Export from Apple Health:</strong></p>
+<ol>
+<li>Open the Health app on your iPhone</li>
+<li>Tap your profile picture in the top right</li>
+<li>Scroll down and tap <strong>Export All Health Data</strong></li>
+<li>AirDrop the export to your Mac, or save to Files and transfer via iCloud</li>
+<li>The file is going to be huge, just a warning.</li>
+</ol>
+<p><strong>Recommended: Use the Health Export app (free tier is fine)</strong></p>
+<ol>
+<li>Download <a href="https://apps.apple.com/app/health-export/id1477722520">Health Export</a> from the App Store</li>
+<li>Select: Heart Rate Variability, Sleep Analysis, Apple Sleeping Wrist Temperature, Time in Daylight</li>
+<li>Set your date range, export as CSV daily average</li>
+<li>Transfer the CSV to your computer</li>
+<li>Also download Menstrual Cycle data if you're using cycle tracking — see below.</li>
+</ol>
+<p><strong>Import:</strong></p>
+<pre><code class="language-bash">python import_apple_health.py path/to/your_export.csv
+
+# Preview without writing:
+python import_apple_health.py ~/Downloads/health_export.csv --dry-run
+
+# Create new rows for dates that don't exist yet:
+python import_apple_health.py ~/Downloads/health_export.csv --create-new
+</code></pre>
+<h2 id="from-apple-health--menstrual-cycle-data">From Apple Health — Menstrual Cycle Data</h2>
+<p>If you enabled cycle tracking during setup, import your cycle history from an Apple Health XML export:</p>
+<ol>
+<li>Export from Health app (see above)</li>
+<li>Use the <a href="https://apps.apple.com/app/health-export/id1477722520">Health Export app</a> — select <strong>Menstrual Flow</strong> and <strong>Intermenstrual Bleeding</strong>, export as CSV</li>
+<li>Import:</li>
+</ol>
+<pre><code class="language-bash"># Preview first:
+python import_cycle.py --csv your_cycle_export.csv --dry-run
+
+# Import:
+python import_cycle.py --csv your_cycle_export.csv
+</code></pre>
+<p>Flow priority when multiple records exist for the same day: heavy &gt; medium &gt; light &gt; spotting. Intermenstrual Bleeding is imported as spotting. Sexual Activity and Persistent Menstrual Bleeding records are skipped.</p>
+<h2 id="from-your-own-symptom-tracker">From Your Own Symptom Tracker</h2>
+<p>If you've been tracking in a spreadsheet, you can import it. Required column: <code>Date</code> (in YYYY-MM-DD, MM/DD/YYYY, or &quot;Jul 22, 2025&quot; format). Optional columns are mapped automatically for symptom flags, pain/fatigue scales, sleep hours, and notes.</p>
+<pre><code class="language-bash">python import_tracker.py path/to/your_tracker.csv --dry-run
+python import_tracker.py path/to/your_tracker.csv
+</code></pre>
+<h2 id="lab-results">Lab Results</h2>
+<pre><code class="language-csv">Date,Test,Value,Units,Lab,Doctor
+2021-04-16,C4,28,mg/dL,LabCorp,Dr. Smith
+</code></pre>
+<pre><code class="language-bash">python import_labs.py path/to/labs.csv --dry-run
+python import_labs.py path/to/labs.csv
+</code></pre>
+<p>The script auto-detects reference ranges and flags common tests (C3, C4, CRP, ESR, anti-dsDNA, etc.).</p>
+<h2 id="uv-data-backfill">UV Data Backfill</h2>
+<p>After importing historical data, fetch UV values for those dates:</p>
+<pre><code class="language-bash">python backfill_uv.py
+</code></pre>
+<p>You'll need a free <a href="https://visualcrossing.com">Visual Crossing</a> API key. Add it to <code>config.json</code>:</p>
+<pre><code class="language-json">&quot;visual_crossing_key&quot;: &quot;YOUR_KEY_HERE&quot;
+</code></pre>
+<blockquote>
+<p>The free tier allows 1000 records/day. Historical UV uses ~24 records per day, so you can backfill about 40 days for free. Beyond that, the metered plan is $0.0001/record.</p>
+</blockquote>
+</article>
+  </div>
+  <div class="wrap backto"><a href="/docs">&#8592; all documentation</a></div>
 </main>
 <footer>
   <div class="wrap">

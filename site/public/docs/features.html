@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Features &#8212; sardinetracker</title>
+<meta name="description" content="Everything the tracker does, one area at a time: daily logging, the flare model, interventions, the clinical record and the clinician portal.">
+<link rel="canonical" href="https://sardinetracker.com/docs/features">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://sardinetracker.com/docs/features">
+<meta property="og:site_name" content="sardinetracker">
+<meta property="og:title" content="Features &#8212; sardinetracker">
+<meta property="og:description" content="Everything the tracker does, one area at a time: daily logging, the flare model, interventions, the clinical record and the clinician portal.">
+<meta property="og:image" content="https://sardinetracker.com/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&amp;family=IBM+Plex+Mono:wght@300;400&amp;display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e0e12; --surface:#16161d; --elevated:#1e1e28;
+    --line:#2a2a38; --line2:#38384a;
+    --ink:#ffffff; --ink2:rgb(202,196,223); --muted:rgb(159,157,183);
+    --accent:#7a8de0; --flare:#e05656;
+    --display:'Playfair Display','Times New Roman',Georgia,serif;
+    --body:'Source Serif 4','Times New Roman',Georgia,serif;
+    --mono:'IBM Plex Mono','Courier New',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:16px;scroll-behavior:smooth}
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);font-weight:300;line-height:1.65}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px}
+  code,.mono{font-family:var(--mono);font-size:.875em;color:var(--ink2)}
+
+  header{border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);z-index:10}
+  .nav{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:14px 0;flex-wrap:wrap}
+  .wordmark{font-family:var(--display);font-weight:700;font-size:1.15rem;color:var(--ink);letter-spacing:.02em}
+  .wordmark span{color:var(--accent)}
+  .nav ul{display:flex;gap:20px;list-style:none;flex-wrap:wrap}
+  .nav ul a{font-family:var(--mono);font-size:.8rem;color:var(--ink2)}
+  .nav ul a.here{color:var(--accent)}
+
+  .dochead{padding:56px 0 30px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+  .dochead h1{font-family:var(--display);font-weight:600;font-size:clamp(1.9rem,5vw,2.9rem);line-height:1.14;letter-spacing:-.01em;max-width:18ch}
+  .dochead p{font-size:1.05rem;color:var(--ink2);max-width:60ch;margin-top:18px}
+
+  .layout{display:grid;grid-template-columns:210px 1fr;gap:52px;padding:40px 0 20px;align-items:start}
+  @media(max-width:860px){.layout{grid-template-columns:1fr;gap:26px}}
+
+  .toc{position:sticky;top:78px;max-height:calc(100vh - 104px);overflow-y:auto;overscroll-behavior:contain;font-family:var(--mono);font-size:.76rem;line-height:1.5;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+  .toc::-webkit-scrollbar{width:6px}
+  .toc::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+  .toc ul{padding-bottom:8px}
+  .toc .lbl{color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:.68rem;display:block;margin-bottom:12px}
+  .toc ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .toc a{color:var(--ink2);display:block}
+  .toc .h3{padding-left:12px;border-left:1px solid var(--line);color:var(--muted)}
+  @media(max-width:860px){
+    .toc{position:static;max-height:172px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+  }
+
+  .prose{min-width:0;font-size:1.02rem;color:var(--ink2)}
+  .prose > *+*{margin-top:20px}
+  .prose h2{font-family:var(--display);font-weight:600;font-size:clamp(1.35rem,2.6vw,1.75rem);color:var(--ink);margin-top:52px;line-height:1.25;scroll-margin-top:86px}
+  .prose h3{font-family:var(--body);font-weight:600;font-size:1.12rem;color:var(--ink);margin-top:38px;scroll-margin-top:86px}
+  .prose h4{font-family:var(--mono);font-weight:400;font-size:.86rem;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin-top:32px;scroll-margin-top:86px}
+  .prose h2+*,.prose h3+*,.prose h4+*{margin-top:12px}
+  .prose p{max-width:68ch}
+  .prose strong{color:var(--ink);font-weight:600}
+  .prose em{font-style:italic}
+  .prose ul,.prose ol{padding-left:22px;max-width:68ch;display:flex;flex-direction:column;gap:8px}
+  .prose li{padding-left:4px}
+  .prose li::marker{color:var(--muted)}
+  .prose blockquote{border-left:3px solid var(--accent);background:var(--surface);border-radius:0 8px 8px 0;padding:14px 18px;font-style:italic;max-width:66ch}
+  .prose blockquote p{max-width:none}
+  .prose hr{border:0;border-top:1px solid var(--line);margin:44px 0}
+  .prose code{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--ink2);white-space:nowrap}
+  .prose pre{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow-x:auto;line-height:1.75}
+  .prose pre code{background:none;border:0;padding:0;font-size:.82rem;white-space:pre;color:var(--ink2)}
+  .prose .tablewrap{overflow-x:auto}
+  .prose table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:520px}
+  .prose th{text-align:left;font-family:var(--mono);font-weight:400;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 14px 9px 0;border-bottom:1px solid var(--line2);vertical-align:bottom}
+  .prose td{padding:12px 14px 12px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  .prose td:first-child{color:var(--ink)}
+  .prose tr:last-child td{border-bottom:0}
+  .prose a code{color:var(--accent)}
+
+  .srconly{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .backto{font-family:var(--mono);font-size:.78rem;color:var(--muted);padding:26px 0 0}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:34px}
+  .card{background:var(--surface);padding:22px 24px;display:flex;flex-direction:column;gap:8px}
+  .card h2{font-family:var(--display);font-weight:600;font-size:1.2rem;color:var(--ink);margin:0}
+  .card p{font-size:.93rem;color:var(--ink2);margin:0}
+  .card .go{font-family:var(--mono);font-size:.76rem;margin-top:auto;padding-top:8px}
+
+  footer{border-top:1px solid var(--line);padding:36px 0 60px;color:var(--muted);font-size:.85rem;margin-top:56px}
+  footer .links{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem;margin-bottom:16px}
+  footer p{max-width:70ch}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Features", "description": "Everything the tracker does, one area at a time: daily logging, the flare model, interventions, the clinical record and the clinician portal.", "url": "https://sardinetracker.com/docs/features", "inLanguage": "en", "isPartOf": {"@type": "WebSite", "@id": "https://sardinetracker.com/#site"}, "about": {"@type": "SoftwareApplication", "@id": "https://sardinetracker.com/#app"}, "author": {"@type": "Person", "name": "Alaric Moore"}, "license": "https://www.gnu.org/licenses/agpl-3.0.html"}</script>
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <div class="wordmark"><a href="/" style="color:inherit">sardine<span>tracker</span></a></div>
+    <ul><li><a href="/docs/remote-access">remote access</a></li><li><a href="/docs/troubleshooting">troubleshooting</a></li><li><a href="/docs/help">help</a></li><li><a class="here" href="/docs/features">features</a></li><li><a href="/docs/importing">importing</a></li><li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li></ul>
+  </div>
+</header>
+<main>
+  <div class="wrap dochead">
+    <p class="eyebrow">documentation</p>
+    <h1>Features</h1>
+    <p>Everything the tracker does, one area at a time: daily logging, the flare model, interventions, the clinical record and the clinician portal.</p>
+  </div>
+  <div class="wrap layout">
+    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#daily-tracking">Daily Tracking</a></li><li><a href="#menstrual-cycle-tracking-optional">Menstrual Cycle Tracking (Optional)</a></li><li><a href="#data-visualization--analysis">Data Visualization &amp; Analysis</a></li><li><a href="#flare-prediction-model">Flare Prediction Model</a></li><li><a href="#forecast-lab-model-tuning">Forecast Lab (model tuning)</a></li><li><a href="#model-performance-tracking">Model Performance Tracking</a></li><li><a href="#intervention-tracking--side-effects-interventions-nav-label-reactions">Intervention Tracking &amp; Side Effects (`/interventions`, nav label &quot;reactions&quot;)</a></li><li><a href="#uv-wearable-wearable--prototype">UV Wearable (`/wearable`) — Prototype</a></li><li><a href="#clinical-record-management">Clinical Record Management</a></li><li><a href="#clinician-portal-share-your-record">Clinician Portal (share your record)</a></li><li><a href="#search--navigation">Search &amp; Navigation</a></li><li><a href="#data-privacy--security">Data Privacy &amp; Security</a></li><li><a href="#technical-features">Technical Features</a></li></ul></nav>
+    <article class="prose"><p>The full feature list, one area at a time. For installing, see the <a href="https://github.com/alaricmoore/sardinetracker/blob/main/README.md">README</a>. For how to use each part day to day, see <a href="/docs/help">using sardinetracker</a>. For how the flare score is calculated, see <a href="https://github.com/alaricmoore/sardinetracker/blob/main/MODEL.md">MODEL.md</a>.</p>
+<h2 id="daily-tracking">Daily Tracking</h2>
+<ul>
+<li><strong>Symptom logging</strong>: Track 9 symptom categories with detailed notes (neurological, cognitive, musculature, migraine, pulmonary, dermatological, mucosal, rheumatic, gastrointestinal)</li>
+<li><strong>Environmental factors</strong>: UV exposure (pulled from Open-Meteo and Visual Crossing), temperature, sleep quality</li>
+<li><strong>Physical metrics</strong>: Steps, basal body temperature, pain/fatigue scales (1-10)</li>
+<li><strong>Flare documentation</strong>: Mark flare days and track what actually happened</li>
+<li><strong>Quick entry mode</strong>: Stripped-down form (<code>?mode=quick</code>) showing only the fields that feed the prediction model — for days when filling a full form is too much</li>
+</ul>
+<h2 id="menstrual-cycle-tracking-optional">Menstrual Cycle Tracking (Optional)</h2>
+<p>Enabled via <code>track_cycle: true</code> in setup. Designed for patients where steroids, biologics, or disease activity disrupt menstrual regularity.</p>
+<ul>
+<li><strong>Month-grid calendar</strong>: Color-coded period flow (heavy/medium/light/spotting) with phase overlays</li>
+<li><strong>BBT-anchored phase detection</strong>: Uses basal body temperature biphasic shift (rule of three: 3 consecutive days ≥ 0.1°F above follicular average) to detect actual ovulation rather than relying on fixed calendar math — critical when steroids compress or extend cycle length unpredictably</li>
+<li><strong>Cycle phase overlays</strong>: Luteal and PMS windows calculated from detected ovulation, not assumed 14-day countdown</li>
+<li><strong>BBT heat visualization</strong>: Per-day colored border on calendar cells indicating BBT elevation, colored SVG wave graph per month</li>
+<li><strong>Flare/phase correlation</strong>: Patterns card showing flare distribution by cycle phase across all historical data</li>
+<li><strong>Intervention effects on cycle</strong>: Before/after average cycle length for each medication intervention</li>
+<li><strong>Apple Health import</strong>: <code>import_cycle.py</code> imports Menstrual Flow and Intermenstrual Bleeding records from Apple Health export CSV</li>
+</ul>
+<h2 id="data-visualization--analysis">Data Visualization &amp; Analysis</h2>
+<ul>
+<li><strong>Model dashboard</strong> (<code>/model</code>, nav label &quot;model&quot;): score attribution over time — stacked bars showing exactly what's driving each day's risk score, with flare markers and threshold line. Includes click-to-expand trend charts for symptom burden delta, RMSSD deviation, and respiratory rate deviation (with +10% / +15% scoring thresholds dashed in). Score distribution stats (flare vs non-flare) and per-day prediction accuracy strip.</li>
+<li><strong>Model sub-navigation from the dashboard</strong>: accuracy, history, and pre-flare patterns are all hyperlinked from the model view so you don't have to dig through nested menus. A hidden <code>&gt;&gt;</code> chevron in the corner opens the Forecast Lab (easter-egg style,just because that's fun).</li>
+<li><strong>Pre-flare pattern analysis</strong> (<code>/forecast/patterns</code>): biometric averages, symptom frequencies, and RMSSD trajectories in the days before ER visits and major flares, with aggregate mean lines and confidence bands.</li>
+<li><strong>UV lag analysis</strong> (<code>/uv-lag</code>): Pearson correlation between UV dose and each symptom at lag windows of 0, 1, 2, 3, and 4 days — identifies your personal best-predicting UV-to-symptom delay.</li>
+<li><strong>Intervention evaluation</strong> (<code>/interventions</code>, nav label &quot;reactions&quot;): per-medication pre/post flare and autonomic shift analysis, plus structured logging of how your body <em>reacts</em> to each intervention (side effects, rebounds, dose changes). Described in its own section below — it's a big enough feature to deserve one.</li>
+<li><strong>UV wearable</strong> (<code>/wearable</code>, nav label &quot;wearable&quot;) — <em>prototype</em>: per-sample UV exposure from a DIY wearable sensor, charted over time with per-day peak/dose summaries. Experimental; see the dedicated section below.</li>
+</ul>
+<h2 id="flare-prediction-model">Flare Prediction Model</h2>
+<p>Transparent statistical scoring, tunable per-user, with 13 contributing categories:</p>
+<ul>
+<li><strong>Environmental</strong>: UV dose (same-day + 4-day cumulative with flattened decay)</li>
+<li><strong>Physiological</strong>: Physical overexertion (steps relative to personal baseline, sleep-adjusted), basal body temperature delta</li>
+<li><strong>Symptoms</strong>: 8 symptom categories with per-category weights, plus rheumatic joint-location parsing (major joints score higher than minor)</li>
+<li><strong>Pain / Fatigue / Emotional</strong>: laddered scoring (pain ≥4/5/6/7 and fatigue ≥4/5/6/7 step up in contribution — replaces the old cliff-at-7 threshold that missed function-limiting days where a single severe symptom was the whole event)</li>
+<li><strong>Symptom burden delta</strong>: how many more symptoms are active than your personal 14-day baseline — &quot;symptoms accelerating above your normal&quot; rather than raw count, so chronic daily symptoms don't drown out the signal</li>
+<li><strong>RMSSD baseline deviation</strong>: 7-day rolling vagal tone vs 30-day baseline. Drops before and during flares, mechanistically grounded in the cholinergic anti-inflammatory pathway, empirically replicates Thanou 2016's ΔRMSSD-ΔSLEDAI finding in n=1 data.</li>
+<li><strong>RMSSD instability</strong>: mean day-to-day |ΔRMSSD| over prior 5 days vs 30-day baseline. Captures autonomic <em>chaos</em> — the pattern where RMSSD oscillates wildly in the week before major flares rather than just trending down. Independent additive signal to the level-based deviation above.</li>
+<li><strong>Respiratory rate baseline deviation</strong>: 3-day rolling respiratory rate vs 14-day baseline. Motivated by ICU deterioration literature (Barfod 2017) but labeled with an honest caveat that the n=1 cross-sectional signal is weak — the <code>/model</code> resp-rate chart is the live validation tool.</li>
+<li><strong>Real-time risk assessment</strong>: daily flare risk score (0-25) with color-coded risk levels; separate major-flare recall tracked as the primary performance metric because function-limiting flares are the ones that matter most to catch.</li>
+<li><strong>Contributing factors breakdown</strong>: every score surfaces which rules fired and how many points each contributed — nothing is hidden.</li>
+<li><strong>Personalized recommendations</strong>: context-aware suggestions based on current risk level.</li>
+</ul>
+<h2 id="forecast-lab-model-tuning">Forecast Lab (model tuning)</h2>
+<ul>
+<li><strong>Interactive weight adjustment</strong>: tune symptom weights, category multipliers, multi-day predictor weights, and the flare threshold using real-time sliders. All sliders are exposed — no hidden tunables.</li>
+<li><strong>Live simulation</strong>: see how weight changes affect accuracy, recall, and precision before committing.</li>
+<li><strong>Prediction flip analysis</strong>: identify which dates would change prediction with new weights.</li>
+<li><strong>Apply and revert</strong>: save custom weights per-user or reset to factory defaults.</li>
+<li><strong>Personal lag signature widget</strong>: shows which UV-to-symptom lag correlates strongest in your data.</li>
+<li><strong>Built-in manual</strong>: accessible via <code>?</code> command in the terminal-style interface.</li>
+<li><strong>Model transparency</strong>: the actual Python calculation code is rendered inline in the app via <code>inspect.getsource()</code> — the code you see is the code that runs.</li>
+</ul>
+<h2 id="model-performance-tracking">Model Performance Tracking</h2>
+<ul>
+<li><strong>Major flare recall as headline metric</strong>: major function-limiting flares are the ones you can't afford to miss. Separate recall figures for major/ER, minor, and combined.</li>
+<li><strong>Accuracy analysis</strong> over 30/60/90/120/365/all day windows.</li>
+<li><strong>Confusion matrix</strong>: true positives, false positives, true negatives, false negatives.</li>
+<li><strong>Full ranked missed-majors table</strong>: every major flare the model missed, sorted by how far below threshold the score fell, with your notes and fired factors inline so you can see the context.</li>
+<li><strong>Factor signal quality table</strong>: for each scoring factor, compares fire-rate on caught majors vs missed majors — positive lift means the factor is earning its weight, low or negative lift flags factors that aren't helping.</li>
+<li><strong>Historical validation</strong>: compare predictions against actual flare outcomes with clickable dates that jump to the daily entry for context.</li>
+<li><strong>Weight optimization</strong>: data-driven suggestions for improving model performance based on severity-aware false-positive and false-negative patterns.</li>
+</ul>
+<h2 id="intervention-tracking--side-effects-interventions-nav-label-reactions">Intervention Tracking &amp; Side Effects (<code>/interventions</code>, nav label &quot;reactions&quot;)</h2>
+<p>Purpose-built clinical evaluation view: &quot;did this medication actually help?&quot; in stats rather than generalizations. (The route is still <code>/interventions</code>; the nav now labels it <strong>reactions</strong> because the view is as much about how your body <em>reacts</em> to an intervention — side effects, rebounds, autonomic shifts — as about the intervention itself.)</p>
+<ul>
+<li><strong>Per-medication cards</strong>: one card for each medication flagged as primary or secondary intervention (toggle the flag in <code>/clinical#medications</code>). Shows pre/post:
+<ul>
+<li><strong>Flare impact</strong>: total count, major/ER count, minor count, mean gap days, delta percentages color-coded by direction</li>
+<li><strong>Autonomic shift</strong>: RMSSD / SDNN / resp rate means ± SD, with n counts</li>
+</ul>
+</li>
+<li><strong>Matched-window analysis</strong> for ongoing medications: if HCQ has been running 130 days, it compares the 130 days before you started to the 130 days of use — statistically honest rather than an arbitrary fixed window</li>
+<li><strong>Fixed-window analysis</strong> for one-time doses (steroid injections, IV's, etc.): 30/60/90/120/all-day selector</li>
+<li><strong>Duration-of-effect for one-time interventions</strong>: days to next flare per severity tier; days until each autonomic metric returned to baseline (within ±1 SD of pre-mean for 7 consecutive days)</li>
+<li><strong>Auto-detected rebound flags</strong>: if a one-time dose reduced flare rate initially (days 0-13 post) but rate surged back in days 14-45, an amber banner surfaces the pattern. Helpful for catching IV steroid rebounds you might miss manually.</li>
+<li><strong>Events log per medication</strong>: structured dated observations with types <code>side_effect</code> / <code>rebound</code> / <code>efficacy_change</code> / <code>dose_change</code> / <code>note</code>. Side effects get severity 0-10; other types skip the severity field.</li>
+<li><strong>Global HRV trend chart</strong> at the top of the page with intervention start lines and flare markers overlaid — the &quot;am I trending up overall&quot; glance kept from the old <code>/autonomic</code> view.</li>
+<li><strong>Color-coded cards</strong>: primary interventions get a teal left-border, secondary get purple, supplements get orange. Stat boxes inside each card use the global palette (RMSSD purple, SDNN blue, resp teal, flare red, minor amber) so the eye tracks consistent colors across the app.</li>
+</ul>
+<h2 id="uv-wearable-wearable--prototype">UV Wearable (<code>/wearable</code>) — Prototype</h2>
+<blockquote>
+<p><strong>Status: experimental.</strong> This is an optional, in-development feature for a DIY hardware add-on. The core tracker works fully without it. The hardware/firmware live in a separate project; what ships here is the server side — an ingest endpoint and a view. Treat the timestamps as approximate (see the caveat below).</p>
+</blockquote>
+<p>The motivation is the lupus use case: UV is a known photo-trigger, and a wearable sensor measures <em>your actual exposure</em> at the body rather than the regional forecast that feeds the rest of the app's UV scoring. The two are complementary — forecast UV for prediction, measured UV for ground truth.</p>
+<ul>
+<li><strong>The device</strong>: a small unit with a VEML6075 UV sensor (UVA/UVB/IR channels), sampling roughly every 5 minutes and buffering readings until it can reach the server.</li>
+<li><strong>Ingest</strong> (<code>POST /api/uv/ingest</code>): the device uploads a CSV batch (one row per sample or event mark) authenticated with a bearer token. Rows are de-duplicated, so re-syncing overlapping data is safe. Bad I2C reads (a floating bus that pegs one channel to <code>0xFFFF</code>) are filtered out.</li>
+<li><strong><code>/wearable</code> view</strong>: charts per-sample UVA, UVB, and computed UV index over a selectable window (24h / 1 week / 1 month / 6 months / all time), with the chart auto-bucketing to coarser bins as the range grows. A stats panel shows mean and peak values.</li>
+<li><strong>Per-day summary</strong>: peak UV index and <strong>hours above the moderate threshold</strong> (UVI ≥ 3.0, the WHO &quot;sunburn risk for unprotected skin&quot; line) for each day — a daily-dose view that's more robust than the chart to timing error.</li>
+<li><strong>The timestamp caveat (important)</strong>: the prototype device has no real-time clock. Samples taken while the device is connected are anchored to real time from the sync; samples buffered across reboots are <em>back-anchored</em> by chaining each boot's observed duration backward from the most recent sync. This is a heuristic — if the device sleeps or charges off between boots, those gaps get swallowed and older samples drift later than reality. Approximate rows are shown dimmed/small and can be hidden with <code>?include_approx=0</code>. The per-day peak/dose summaries tolerate this better than the minute-resolution chart does.</li>
+</ul>
+<p><strong>Setup</strong> (only if you've built the device): add <code>wearable_token</code> (the shared bearer secret) and <code>wearable_user_id</code> (which account the readings belong to) to <code>config.json</code>. With those unset, the ingest endpoint returns a clear error and the view simply shows no data.</p>
+<h2 id="clinical-record-management">Clinical Record Management</h2>
+<ul>
+<li><strong>Lab results</strong>: Track test results with numeric values, qualitative results, reference ranges, and flags</li>
+<li><strong>Medications</strong>: Full medication history with doses, frequencies, start/end dates, and primary/secondary intervention flags (the flags feed the <code>/interventions</code> view)</li>
+<li><strong>Clinical events</strong>: Document appointments, procedures, hospitalizations with provider and facility info</li>
+<li><strong>Clinician directory</strong>: Maintain contact info for your care team (specialty, clinic, network, notes)</li>
+<li><strong>ANA tracking</strong>: Specialized tracking for ANA titers, patterns, and screen results</li>
+<li><strong>CSV export</strong>: Export labs, medications, events, or clinician data for external analysis or records requests</li>
+<li><strong>Steroid taper wizard</strong>: Pre-filled 6-day Medrol dose pack schedule with adjustable times and doses; schedules push notifications for each dose via ntfy</li>
+<li><strong>Dose checklist</strong>: Today's scheduled doses appear on the daily entry page with one-tap &quot;mark taken&quot; tracking</li>
+<li><strong>Document library</strong>: Upload clinic notes, pathology, and imaging PDFs to a documents tab; text is extracted (pdftotext or pypdf) so documents are full-text searchable. Files stay on your disk — only metadata and searchable text go in the database</li>
+<li><strong>CSV lab import</strong>: Paste or upload a CSV of lab results in-app, get an auto-flagged preview (reference ranges detected, duplicates tagged), and commit only the rows you check</li>
+</ul>
+<h2 id="clinician-portal-share-your-record">Clinician Portal (share your record)</h2>
+<p>Bring a clinician into your data without handing over an account, an export, or a stack of paper.</p>
+<ul>
+<li><strong>Capability links</strong>: mint a read-only link tied to a specific clinician from <code>/portals</code> — the URL itself is the key, nothing to install or sign into on their end</li>
+<li><strong>Overview page</strong>: a report-style synopsis (flare burden, disease-modifying therapy, serology, mean pain/fatigue), the disease-burden chart, and auto-generated findings up top, then a card for each section of the record</li>
+<li><strong>Section pages</strong>: documents, medications (current + past), labs (curated key markers, complete history, ANA), clinical timeline, and 90-day symptom history</li>
+<li><strong>Source documents included</strong>: every uploaded PDF opens directly through the link, so the clinician can check the primary source, not just your summary</li>
+<li><strong>Patient-controlled</strong>: links expire (30 days by default), can be revoked at any time, and every access is logged so you can see when and what was viewed</li>
+<li><strong>Print-ready</strong>: every portal page (and the in-app report) reprints as clean ink-on-paper for clinicians who want a hard copy</li>
+</ul>
+<h2 id="search--navigation">Search &amp; Navigation</h2>
+<ul>
+<li><strong>Full-text search</strong>: Search across all daily entries, clinical notes, medications, and events</li>
+<li><strong>Keyword shortcuts</strong>: Type &quot;help&quot;, &quot;manual&quot;, &quot;lab&quot;, &quot;cli&quot; in search to access Forecast Lab</li>
+<li><strong>Recent note reference</strong>: Access previous notes and events by keyword</li>
+<li><strong>Quick filters</strong>: Jump to specific symptom categories or date ranges</li>
+</ul>
+<h2 id="data-privacy--security">Data Privacy &amp; Security</h2>
+<ul>
+<li><strong>Local-first</strong>: All data stored in local SQLite database on your machine</li>
+<li><strong>No cloud sync</strong>: Data never leaves your computer by default</li>
+<li><strong>Accounts and login</strong>: every page sits behind a username and password (bcrypt-hashed); each account's records are kept separate. See <a href="#accounts-and-login">Accounts and Login</a> below.</li>
+<li><strong>Optional remote access</strong>: reach your instance from outside the house through a Cloudflare Tunnel or a Tailscale-connected VPS, with a checklist for hardening the app before it faces the internet (see <a href="/docs/remote-access">remote access</a>)</li>
+<li><strong>Version control safe</strong>: Comprehensive <code>.gitignore</code> protects health data from accidental commits</li>
+<li><strong>Export control</strong>: You decide what data leaves your system and when</li>
+</ul>
+<h2 id="technical-features">Technical Features</h2>
+<ul>
+<li><strong>UV auto-backfill</strong>: Automatically fetch historical UV data from Open-Meteo and Visual Crossing based on GPS coordinates</li>
+<li><strong>Responsive design</strong>: Works on desktop and mobile browsers</li>
+<li><strong>Dark mode</strong>: Easy on the eyes, just toggle the moon/sun in the header.</li>
+<li><strong>Light mode</strong>: Good for when you can't make out dark mode.</li>
+</ul>
+</article>
+  </div>
+  <div class="wrap backto"><a href="/docs">&#8592; all documentation</a></div>
+</main>
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="/">sardinetracker.com</a>
+      <a href="https://github.com/alaricmoore/sardinetracker">source &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/MODEL.md">how the model works &#8599;</a>
+      <a href="https://github.com/alaricmoore/sardinetracker/blob/main/LICENSE">AGPL-3.0 &#8599;</a>
+    </div>
+    <p>A one-person project, built between doctor appointments, machine repair, and terrariums.
+       Not medical advice; always consult qualified clinicians. Trust your observations.
+       Keep asking questions.</p>
+  </div>
+</footer>
+</body>
+</html>

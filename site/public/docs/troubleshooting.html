@@ -111,7 +111,7 @@
 <header>
   <div class="wrap nav">
     <div class="wordmark"><a href="/" style="color:inherit">sardine<span>tracker</span></a></div>
-    <ul><li><a href="/docs/remote-access">remote access</a></li><li><a class="here" href="/docs/troubleshooting">troubleshooting</a></li><li><a href="/docs/help">help</a></li><li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li></ul>
+    <ul><li><a href="/docs/remote-access">remote access</a></li><li><a class="here" href="/docs/troubleshooting">troubleshooting</a></li><li><a href="/docs/help">help</a></li><li><a href="/docs/features">features</a></li><li><a href="/docs/importing">importing</a></li><li><a href="https://github.com/alaricmoore/sardinetracker">github &#8599;</a></li></ul>
   </div>
 </header>
 <main>
@@ -121,7 +121,7 @@
     <p>Symptom-first triage for a deployed instance. What to check, in what order, when the site won&#x27;t load or a device stops syncing.</p>
   </div>
   <div class="wrap layout">
-    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#placeholders">Placeholders</a></li><li><a href="#the-map">The map</a></li><li><a href="#three-front-doors-one-database">Three front doors, one database</a></li><li><a href="#a--the-site-wont-load">A — the site won&#x27;t load</a></li><li><a href="#b--you-cant-ssh-to-the-pi">B — you can&#x27;t SSH to the Pi</a></li><li><a href="#c--backups-have-stopped-arriving">C — backups have stopped arriving</a></li><li><a href="#d--someone-says-their-portal-link-is-dead">D — someone says their portal link is dead</a></li><li><a href="#e--a-phone-or-device-stopped-syncing">E — a phone or device stopped syncing</a></li><li><a href="#the-cold-check">The cold check</a></li><li><a href="#reading-this-offline">Reading this offline</a></li></ul></nav>
+    <nav class="toc" aria-label="On this page"><span class="lbl">On this page</span><ul><li><a href="#first-run-on-your-own-computer">First run, on your own computer</a></li><li><a href="#placeholders">Placeholders</a></li><li><a href="#the-map">The map</a></li><li><a href="#three-front-doors-one-database">Three front doors, one database</a></li><li><a href="#a--the-site-wont-load">A — the site won&#x27;t load</a></li><li><a href="#b--you-cant-ssh-to-the-pi">B — you can&#x27;t SSH to the Pi</a></li><li><a href="#c--backups-have-stopped-arriving">C — backups have stopped arriving</a></li><li><a href="#d--someone-says-their-portal-link-is-dead">D — someone says their portal link is dead</a></li><li><a href="#e--a-phone-or-device-stopped-syncing">E — a phone or device stopped syncing</a></li><li><a href="#the-cold-check">The cold check</a></li><li><a href="#reading-this-offline">Reading this offline</a></li></ul></nav>
     <article class="prose"><p>A symptom-first triage guide. It assumes the <strong>Option A</strong> topology from
 <a href="/docs/remote-access">remote access</a>: Flask on a Raspberry Pi at home, a Cloudflare Tunnel
 to a public hostname, optionally Cloudflare Access in front of it, and Tailscale for admin
@@ -130,6 +130,24 @@ ones don't.</p>
 <p>Everything here is organized by <strong>what you actually see first</strong>, not by which component
 failed. That's deliberate: several very different faults present as &quot;the site is down&quot;, and
 the fastest way out is to tell them apart before you start fixing.</p>
+<p>Haven't deployed yet? Start with <a href="#first-run-on-your-own-computer">First run, on your own computer</a>;
+the rest of this guide is for an instance that's already running on a server.</p>
+<h2 id="first-run-on-your-own-computer">First run, on your own computer</h2>
+<p>Problems that show up while you're installing, before any of the networking below exists.</p>
+<p><strong>&quot;Port 5000 is already in use.&quot;</strong> Common on macOS, where AirPlay Receiver uses port 5000.
+Turn AirPlay Receiver off in System Settings, or edit <code>app.py</code>, change <code>port=5000</code> to
+<code>port=5001</code>, and visit <code>http://localhost:5001</code>.</p>
+<p><strong>The login page won't accept anything.</strong> <code>setup.py</code> doesn't create an account. Make one:</p>
+<pre><code class="language-bash">python create_user.py --admin
+</code></pre>
+<p><strong>&quot;No module named ...&quot; when you start the app.</strong> You're not in the virtual environment.
+Run <code>source .venv/bin/activate</code> (Mac/Linux) or <code>.venv\Scripts\activate</code> (Windows) first.</p>
+<p><strong>UV data shows all zeros.</strong> Check your longitude sign: in North America it's negative
+(Oklahoma City is <code>35.4676, -97.5164</code>). Fix it in <code>config.json</code>, then run
+<code>python backfill_uv.py --force</code>.</p>
+<p><strong>Can't reach it from your phone.</strong> The phone and computer need to be on the same WiFi, the
+app has to be running, and the address starts with <code>http://</code>, not <code>https://</code>. Check that no
+firewall is blocking port 5000.</p>
 <h2 id="placeholders">Placeholders</h2>
 <p>Substitute your own values throughout. Where an address appears, <code>x</code> stands in for a digit.</p>
 <div class="tablewrap"><table>
