@@ -3,6 +3,7 @@
 {% block title %}help — sardinetracker{% endblock %}
 
 {% block content %}
+{# The guide itself is help.md, rendered below. Edit help.md, not this file. #}
 <div class="page-header">
     <h1>help</h1>
     <p class="page-subtitle">a plain-English guide to using the app and understanding what it's tracking</p>
@@ -15,249 +16,95 @@
     <p id="searchStatus" style="color: var(--text-muted); font-size: 0.8rem; margin: var(--space-xs) 0 0 0; display: none;"></p>
 </div>
 
-<div id="helpContent">
-
-<!-- What Is This App? -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>What Is This App?</h2>
-    <p>Biotracker is a personal health logging app built specifically for people managing photosensitive autoimmune and rheumatic conditions &mdash; things like lupus, mixed connective tissue disease, dermatomyositis, or any illness where symptoms are unpredictable, hard to explain to doctors, and deeply affected by things like sun exposure, sleep, and hormonal cycles.</p>
-    <p>It was built by Alaric Moore, who has lupus, because she couldn't find a tool that did what she actually needed: connect the dots between daily life and disease activity, and produce something useful to bring to a 15-minute doctor's appointment.</p>
-    <p>Your data lives on Alaric's private server. It is not sold, shared, or sent anywhere. UV index data is pulled from a public weather API anonymously &mdash; that's the only outside connection the app makes.</p>
+<div id="helpContent" class="readme-body">
+    <noscript><pre style="white-space: pre-wrap; font-size: 0.85rem;">{{ content }}</pre></noscript>
 </div>
 
-<!-- What Should I Log Every Day? -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>What Should I Log Every Day?</h2>
-    <p>The daily entry form is the core of the app. You don't have to fill out every field &mdash; log what feels relevant. The more consistently you log, even minimally, the more useful the patterns become over time.</p>
-    <p><strong>The most important fields for the prediction model are:</strong></p>
-    <ul>
-        <li>Symptoms (how many, how severe)</li>
-        <li>Sleep quality</li>
-        <li>UV index (auto-filled based on your location, but you can adjust it)</li>
-        <li>Flare: yes or no</li>
-    </ul>
-    <p>Everything else adds context and richness over time.</p>
-    <p><strong>On hard days</strong>, there's a simplified quick-entry mode that shows only the fields the model needs. You can reach it by just selecting "quick entry", or by adding <code>?mode=quick</code> to the end of the daily entry URL.</p>
-</div>
-
-<!-- What the Numbers Mean -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>What the Numbers Mean</h2>
-
-    <h3>Pain Scale (1&ndash;10)</h3>
-    <ul>
-        <li><strong>1&ndash;3</strong>: Mild, noticeable but not limiting</li>
-        <li><strong>4&ndash;6</strong>: Moderate, affecting what you can do</li>
-        <li><strong>7&ndash;9</strong>: Severe, significantly limiting</li>
-        <li><strong>10</strong>: Worst pain imaginable / emergency territory</li>
-    </ul>
-
-    <h3>Fatigue Scale (1&ndash;10)</h3>
-    <p>Same idea. A 7 fatigue day is "I cannot get up even though I want to." A 3 is "tired but functional."</p>
-
-    <h3>UV Index</h3>
-    <p>This is a measure of how strong the ultraviolet radiation from the sun is on a given day, on a scale from 0 to 11+.</p>
-    <table>
-        <thead><tr><th>UV Index</th><th>Level</th></tr></thead>
-        <tbody>
-            <tr><td>0&ndash;2</td><td>Low</td></tr>
-            <tr><td>3&ndash;5</td><td>Moderate</td></tr>
-            <tr><td>6&ndash;7</td><td>High</td></tr>
-            <tr><td>8&ndash;10</td><td>Very High</td></tr>
-            <tr><td>11+</td><td>Extreme</td></tr>
-        </tbody>
-    </table>
-    <p>For photosensitive conditions, UV exposure on one day can trigger a flare one, two, or even three days later &mdash; not necessarily the same day. The app tracks this lag and shows you your personal pattern.</p>
-</div>
-
-<!-- What Is HRV? -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>What Is HRV?</h2>
-    <p><strong>HRV stands for Heart Rate Variability.</strong> It sounds technical but the concept is simple.</p>
-    <p>Your heart doesn't beat like a metronome. Even at rest, the time between beats varies slightly &mdash; sometimes a bit longer, sometimes a bit shorter. That variation is HRV.</p>
-    <p><strong>Higher HRV</strong> generally means your nervous system is relaxed, recovered, and adaptable. Your body has resources to work with.</p>
-    <p><strong>Lower HRV</strong> generally means your body is under stress &mdash; from illness, poor sleep, inflammation, or overexertion.</p>
-    <p>For people with autoimmune conditions, HRV can drop noticeably in the day or two <em>before</em> a flare becomes obvious. It's your body signaling that something is off before you fully feel it.</p>
-    <p>You can track HRV with a wearable like an Apple Watch, Garmin, Fitbit, or Whoop. The app lets you log your morning HRV reading and visualize how it trends alongside your symptoms over time.</p>
-    <p>You don't have to track HRV to use the app &mdash; it's an optional field. But if you have a device that measures it, it's one of the more interesting things to correlate with flare activity.</p>
-</div>
-
-<!-- What Is BBT? -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>What Is Basal Body Temperature (BBT)?</h2>
-    <p><strong>Basal body temperature is your body temperature at complete rest</strong> &mdash; typically measured first thing in the morning before getting up, eating, or doing anything. It's usually taken with a special BBT thermometer that reads to two decimal places (like 97.42&deg;F rather than just 97.4&deg;F), though a regular digital thermometer works too.</p>
-
-    <h3>Why does it matter for autoimmune disease?</h3>
-    <p>BBT does two useful things in this context:</p>
-    <p><strong>1. It can signal inflammation.</strong> When your immune system is active &mdash; fighting something, reacting to a trigger &mdash; your resting temperature can shift subtly before you feel obviously sick. A pattern of slightly elevated morning temperatures can be an early signal.</p>
-    <p><strong>2. It tracks your menstrual cycle phase.</strong> This matters because hormonal cycles interact with immune activity. After ovulation, progesterone causes BBT to rise by about 0.2&ndash;0.5&deg;F and stay elevated until your next period. The app detects this shift to figure out which phase of your cycle you're in &mdash; which is much more accurate than just counting days, especially if steroids or disease activity make your cycle irregular.</p>
-
-    <h3>How to log it</h3>
-    <p>Take your temperature first thing in the morning, before getting out of bed, and log it in the daily entry. Even just a few months of data starts to reveal patterns.</p>
-</div>
-
-<!-- The Forecast Model -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>The Forecast Model</h2>
-    <p>After 7 days of logging, the app starts generating a daily flare risk score. This is not a medical prediction &mdash; it's a statistical pattern based on <em>your own</em> historical data.</p>
-    <p>The model scores each day (0&ndash;25) based on:</p>
-    <ul>
-        <li><strong>UV dose</strong> &mdash; sun exposure minutes weighted by UV index intensity and protection level, including cumulative load from the prior 3 days</li>
-        <li><strong>Physical overexertion</strong> &mdash; steps relative to your personal baseline, adjusted for sleep</li>
-        <li><strong>Temperature elevation</strong> &mdash; basal body temperature deviation from your personal baseline</li>
-        <li><strong>Individual symptoms</strong> &mdash; each category has its own weight based on how often it appeared before past flares</li>
-        <li><strong>Pain, fatigue, and emotional state</strong></li>
-        <li><strong>Symptom burden delta</strong> &mdash; the model's strongest predictor. Are you having <em>more</em> symptom categories than your usual number? Having symptoms doesn't predict a flare when you have symptoms most days. Having more than your <em>normal</em> number does.</li>
-        <li><strong>RMSSD baseline deviation</strong> &mdash; is your parasympathetic nervous system withdrawing? A sustained drop in vagal tone (measured via Apple Watch HRV) may precede inflammatory flares. This one is still being validated.</li>
-    </ul>
-    <p><strong>The more data you have, the more accurate it becomes.</strong> Early on it will be rough. Over months, it gets meaningful.</p>
-    <p>You can see today's breakdown on the Forecast page, and the full scoring history on the <strong>Model</strong> dashboard.</p>
-    <p><a href="{{ url_for('model_explainer') }}" style="color: var(--color-accent); font-weight: 500;">Read the full model explainer &rarr;</a></p>
-</div>
-
-<!-- The Forecast Lab -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>The Forecast Lab</h2>
-    <p>The Forecast Lab is an experimental tuning interface that lets you adjust how the flare risk model weighs different factors. Think of it as the "under the hood" view of your forecast.</p>
-    <h3>How to access it</h3>
-    <p>From the <strong>Forecast</strong> page, look for the green <strong>&gt;&gt;</strong> button in the bottom-right area. Tap or click it to open the Forecast Lab.</p>
-    <h3>What you can do there</h3>
-    <ul>
-        <li><strong>Adjust weights</strong> &mdash; change how much each factor (UV, sleep, symptoms, HRV, cycle phase) contributes to your risk score</li>
-        <li><strong>Run simulations</strong> &mdash; test "what if" scenarios against your historical data to see how weight changes would have affected past predictions</li>
-        <li><strong>Apply changes</strong> &mdash; save your tuned weights so the forecast uses them going forward</li>
-        <li><strong>Reset</strong> &mdash; go back to the default weights if your changes don't feel right</li>
-    </ul>
-    <p>This is entirely optional and meant for tinkering. The default weights work well for most people. But if you notice the model consistently over- or under-weighting something (e.g., UV always scores high but you flare more from sleep loss), you can nudge it here.</p>
-</div>
-
-<!-- The Clinical Record -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>The Clinical Record</h2>
-    <p>This section is for organizing the medical side of your life &mdash; not just symptoms.</p>
-    <ul>
-        <li><strong>Labs</strong>: Log test results with values, reference ranges, and dates</li>
-        <li><strong>Medications</strong>: Track what you've taken and when, with start and end dates</li>
-        <li><strong>Clinical Events</strong>: Appointments, ER visits, procedures &mdash; with notes</li>
-        <li><strong>Clinicians</strong>: A directory of your care team</li>
-        <li><strong>ANA Tracking</strong>: Specialized tracking for ANA titers and patterns (relevant for lupus diagnosis)</li>
-    </ul>
-    <p>You can export any of these as a CSV file, which is useful for sending to a new provider, requesting records, or just keeping a personal copy.</p>
-</div>
-
-<!-- Notifications -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>Notifications (ntfy)</h2>
-    <p>The app can send you a daily reminder to log, and an alert if your flare risk is elevated. This uses a free service called ntfy &mdash; you install the ntfy app on your phone, subscribe to a private channel, and that's it. No account required.</p>
-    <p>Setup instructions are in your <a href="{{ url_for('settings') }}" style="color: var(--color-accent);">settings</a>.</p>
-</div>
-
-<!-- Auto-Sync from Your Phone -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>Auto-Sync from Your Phone</h2>
-    <p>Your phone can send biometric data to sardinetracker automatically, with no typing required for steps, HRV, resting heart rate, respiratory rate, SpO2, or basal body temperature. Each platform has its own companion app.</p>
-
-    <h3>iPhone: sardinessync</h3>
-    <p><a href="https://github.com/alaricmoore/sardinessync" style="color: var(--color-accent);"><strong>sardinessync</strong></a> is a native iOS companion app that:</p>
-    <ul>
-        <li>Reads everything HealthKit offers, including RR intervals for overnight RMSSD, Time in Daylight, and respiratory rate</li>
-        <li>Computes RMSSD from raw heartbeat intervals on your phone (better accuracy than Apple's built-in HRV number)</li>
-        <li>Handles background sync automatically, with no manual triggering</li>
-        <li>Gives you a tab with mobile-friendly sardinetracker pages and local push notifications for flare alerts / medication doses</li>
-    </ul>
-    <p>It's not in the App Store (not paying Apple $99/yr for a hobby project's listing). You clone the repo, build it, and install it on your iPhone yourself. With a free personal Apple ID the app expires every 7 days and needs a re-install, about 2 minutes once you're set up. If you pay Apple the $99/yr, it lasts a year between rebuilds.</p>
-    <p>See the sardinessync repo's README for the full setup walkthrough. The short version: change the bundle ID to something unique to you, set signing team to your personal Apple ID, build, and configure the server URL and API token inside the app on first launch.</p>
-
-    <h3>Android: sardinesync-android</h3>
-    <p><a href="https://github.com/alaricmoore/sardinesync-android" style="color: var(--color-accent);"><strong>sardinesync-android</strong></a> reads Health Connect, so it works with any wearable that writes there (Fitbit, Garmin, Samsung, Oura, Pixel Watch), not just an Apple Watch. Setup is in that repo's README.</p>
-
-    <h3>What doesn't sync</h3>
-    <ul>
-        <li><strong>Sleep</strong>: Apple Health and Health Connect both have trouble with polyphasic sleep and sleepwalking, so sleep is better entered manually</li>
-        <li><strong>Symptoms, flare status, notes</strong>: these are personal observations that only you can provide</li>
-    </ul>
-
-    <h3>A note about your API token</h3>
-    <p>The token in the app can write your biometrics and read your flare score. Treat it like a password, and don't paste it anywhere you wouldn't paste your sardinetracker login. If it may have leaked, the remote access guide explains how to replace it.</p>
-</div>
-
-<!-- What This Is and Isn't -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>A Note on What This Is (and Isn't)</h2>
-    <p>This app is not a medical device and does not give medical advice. It is a record-keeping and pattern-visualization tool.</p>
-    <p>What it does well:</p>
-    <ul>
-        <li>Helps you notice your own patterns</li>
-        <li>Gives you something concrete to bring to appointments</li>
-        <li>Creates a longitudinal record that would otherwise exist only as fragmented memories</li>
-    </ul>
-    <p>What it can't do:</p>
-    <ul>
-        <li>Diagnose anything</li>
-        <li>Replace your doctors</li>
-        <li>Predict the future with certainty</li>
-    </ul>
-    <p>Use it as evidence for conversations with your care team, not as a substitute for those conversations.</p>
-</div>
-
-<!-- Tips for Getting Started -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>Tips for Getting Started</h2>
-    <p><strong>Log daily, even briefly.</strong> Consistency matters more than completeness. A 30-second entry every day is worth more than a detailed entry once a week.</p>
-    <p><strong>Mark your flare days.</strong> This is the most important thing for the prediction model. If you're having a bad day, check the flare box.</p>
-    <p><strong>Don't stress about missing days.</strong> Life happens. A gap in the data is fine &mdash; the model works around it.</p>
-    <p><strong>Use the notes fields.</strong> You don't have to write much, but "started new medication today" or "out in the sun for two hours" adds context that pure numbers can't capture.</p>
-    <p><strong>Come back to the Model dashboard.</strong> After a month or two of data, the Model view starts showing you things. Score spikes before flares. Symptom burden deltas climbing. Which components are doing the heavy lifting. Patterns you couldn't see in the day-to-day.</p>
-</div>
-
-<!-- Technical Details -->
-<div class="card help-section" style="margin-bottom: var(--space-md);">
-    <h2>Technical Details</h2>
-    <p>Want to know how the app is built, how to import data from Apple Health, or how to set up remote access on a Raspberry Pi?</p>
-    <p><a href="{{ url_for('readme_page') }}" style="color: var(--color-accent); font-weight: 500;">Read the full technical readme &rarr;</a></p>
-    <p>Want to understand exactly how the flare prediction model works &mdash; every scoring category, the math, the multi-day context system, and the research behind it?</p>
-    <p><a href="{{ url_for('model_explainer') }}" style="color: var(--color-accent); font-weight: 500;">Read the model explainer &rarr;</a></p>
-    <p>Curious how your data is stored and how it reaches your phone? The app runs on a Raspberry Pi 4 with traffic routed through an encrypted Tailscale tunnel. Your health data never leaves the Pi.</p>
-    <p><a href="{{ url_for('remote_access_page') }}" style="color: var(--color-accent); font-weight: 500;">Read the remote access guide &rarr;</a></p>
+<div class="card" style="margin: var(--space-lg) 0 var(--space-md) 0;">
+    <p style="margin-top: 0;"><strong>More detail</strong></p>
+    <p><a href="{{ url_for('model_explainer') }}" style="color: var(--color-accent); font-weight: 500;">The model explainer &rarr;</a>
+       every scoring category, the math, and the research behind it</p>
+    <p><a href="{{ url_for('remote_access_page') }}" style="color: var(--color-accent); font-weight: 500;">The remote access guide &rarr;</a>
+       how the app is reached from outside the house, and what each setup can see</p>
+    <p style="margin-bottom: 0;"><a href="{{ url_for('readme_page') }}" style="color: var(--color-accent); font-weight: 500;">The technical readme &rarr;</a>
+       installing, accounts, and where every other document lives</p>
 </div>
 
 <p style="color: var(--text-muted); font-size: 0.8rem; font-style: italic; text-align: center; margin-bottom: var(--space-2xl);">
-    Built by C. Alaric Moore. Hosted privately. Your data stays here.<br>
+    Built by C. Alaric Moore. Your data stays on whatever server you're signed into.<br>
     Assisted by Claude Opus (Anthropic) &mdash; known around here as Clode &mdash; for the forecasting model and data analysis pipeline.<br>
     If something isn't working or you want a feature added, just ask.
 </p>
 
-</div>
-
 <style>
-.help-section h2 { font-size: 1.15rem; margin-top: 0; margin-bottom: var(--space-sm); }
-.help-section h3 { font-size: 1rem; margin-top: var(--space-md); margin-bottom: var(--space-xs); }
-.help-section p, .help-section li { font-size: 0.9rem; line-height: 1.7; color: var(--text-secondary); }
-.help-section strong { color: var(--text-primary); }
-.help-section table { width: 100%; border-collapse: collapse; margin: var(--space-sm) 0; font-size: 0.85rem; }
-.help-section th, .help-section td { padding: var(--space-xs) var(--space-sm); border: 1px solid var(--border-subtle); text-align: left; }
-.help-section th { background: var(--bg-elevated); color: var(--text-primary); }
-.help-section code { background: var(--bg-elevated); padding: 1px 4px; border-radius: 3px; font-size: 0.85em; }
+.readme-body h1 { font-size: 1.4rem; margin-top: var(--space-lg); margin-bottom: var(--space-sm); border-bottom: 1px solid var(--border-subtle); padding-bottom: var(--space-xs); }
+.readme-body h2 { font-size: 1.2rem; margin-top: var(--space-lg); margin-bottom: var(--space-sm); }
+.readme-body h3 { font-size: 1.05rem; margin-top: var(--space-md); margin-bottom: var(--space-xs); }
+.readme-body p, .readme-body li { font-size: 0.9rem; line-height: 1.7; color: var(--text-secondary); }
+.readme-body strong { color: var(--text-primary); }
+.readme-body a { color: var(--color-accent); }
+.readme-body code { background: var(--bg-elevated); padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+.readme-body pre { background: var(--bg-elevated); padding: var(--space-md); border-radius: 6px; overflow-x: auto; margin: var(--space-sm) 0; }
+.readme-body pre code { background: none; padding: 0; }
+.readme-body blockquote { border-left: 3px solid var(--color-accent); margin: var(--space-sm) 0; padding: var(--space-xs) var(--space-md); color: var(--text-muted); }
+.readme-body table { width: 100%; border-collapse: collapse; margin: var(--space-sm) 0; font-size: 0.85rem; }
+.readme-body th, .readme-body td { padding: var(--space-xs) var(--space-sm); border: 1px solid var(--border-subtle); text-align: left; }
+.readme-body th { background: var(--bg-elevated); color: var(--text-primary); }
+.readme-body hr { border: none; border-top: 1px solid var(--border-subtle); margin: var(--space-lg) 0; }
+.readme-body img { max-width: 100%; }
+.readme-section { margin-bottom: var(--space-md); }
 mark { background: color-mix(in srgb, var(--color-accent) 30%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
 </style>
 
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
+// Render markdown
+const raw = {{ content|tojson }};
+const container = document.getElementById('helpContent');
+container.innerHTML = marked.parse(raw);
+
+// Wrap each h2-delimited section in a .readme-section div for filtering
+const nodes = [...container.childNodes];
+let sections = [];
+let current = null;
+
+for (const node of nodes) {
+    if (node.nodeType === 1 && (node.tagName === 'H1' || node.tagName === 'H2')) {
+        if (current) sections.push(current);
+        current = document.createElement('div');
+        current.className = 'readme-section';
+        current.appendChild(node);
+    } else if (current) {
+        current.appendChild(node);
+    } else {
+        // Nodes before the first heading — wrap them too
+        current = document.createElement('div');
+        current.className = 'readme-section';
+        current.appendChild(node);
+    }
+}
+if (current) sections.push(current);
+
+container.innerHTML = '';
+sections.forEach(s => container.appendChild(s));
+
+// Search
 const searchInput = document.getElementById('helpSearch');
-const sections = document.querySelectorAll('.help-section');
 const status = document.getElementById('searchStatus');
-const originals = [...sections].map(s => s.innerHTML);
+const sectionEls = container.querySelectorAll('.readme-section');
+const originals = [...sectionEls].map(s => s.innerHTML);
 
 searchInput.addEventListener('input', function() {
     const query = this.value.trim().toLowerCase();
 
     if (!query) {
-        sections.forEach((s, i) => { s.innerHTML = originals[i]; s.style.display = ''; });
+        sectionEls.forEach((s, i) => { s.innerHTML = originals[i]; s.style.display = ''; });
         status.style.display = 'none';
         return;
     }
 
     let matchCount = 0;
-    sections.forEach((section, i) => {
+    sectionEls.forEach((section, i) => {
         section.innerHTML = originals[i];
         const text = section.textContent.toLowerCase();
         if (text.includes(query)) {
@@ -280,6 +127,8 @@ function highlightText(el, query) {
     const matches = [];
     while (walker.nextNode()) {
         const node = walker.currentNode;
+        // Skip code blocks
+        if (node.parentElement.closest('pre')) continue;
         const idx = node.textContent.toLowerCase().indexOf(query);
         if (idx >= 0) matches.push({ node, idx });
     }

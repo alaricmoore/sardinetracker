@@ -238,8 +238,15 @@ def settings():
 
 @app.route("/help")
 def help_page():
-    """Searchable help page."""
-    return render_template("help.html")
+    """Searchable help page. The content is help.md, the same file published at
+    sardinetracker.com/docs/help, so the in-app help and the website can't drift apart."""
+    help_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "help.md")
+    try:
+        with open(help_path, "r") as f:
+            help_content = f.read()
+    except FileNotFoundError:
+        help_content = "help.md not found."
+    return render_template("help.html", content=help_content)
 
 
 @app.route("/readme")

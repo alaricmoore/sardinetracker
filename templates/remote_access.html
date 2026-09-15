@@ -20,20 +20,19 @@
         how your data gets to you
     </div>
     <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 var(--space-sm) 0;">
-        The sardinetracker app you're using right now runs on a <strong>Raspberry Pi 4</strong> sitting in Alaric's house.
-        Your health data &mdash; every daily entry, lab result, medication, and note &mdash; lives in a SQLite database
-        on that Pi and never leaves it.
+        Your health data lives in a SQLite database on the machine running this app, and stays there.
+        How your browser reaches that machine depends on how whoever runs it has set it up. The guide
+        below describes the two common setups.
     </p>
     <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 var(--space-sm) 0;">
-        When you open the app in your browser, your request travels through an encrypted
-        <strong>Tailscale</strong> tunnel to an Oracle Cloud VM, which forwards it to the Pi.
-        The Oracle VM can't read your data &mdash; it just passes encrypted traffic.
-        The only external connection the app makes is to a public weather API to fetch UV index data,
-        using just your city-level coordinates.
+        Worth knowing: in both of them, the service in the middle (Cloudflare, or a cloud server running
+        nginx) decrypts traffic on its way through, so it could read what you view and send. If you run
+        this app for other people, tell them which setup you use.
     </p>
     <p style="color: var(--text-muted); font-size: 0.8rem; margin: 0;">
-        The document below is the full technical guide for how this infrastructure is set up.
-        You don't need to understand any of it to use the app &mdash; it's here for transparency.
+        Apart from notifications you turn on, the app's only outside connections are to public weather
+        services for the UV index, using just your coordinates. You don't need to understand the guide
+        to use the app; it's here for transparency.
     </p>
 </div>
 
