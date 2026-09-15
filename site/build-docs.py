@@ -71,6 +71,14 @@ DOCS = [
         "blurb": "The in-app help, on the web: what each view is for, what the numbers "
                  "mean, and how to log a day without it becoming a chore.",
     },
+    {
+        "src": "FEATURES.md",
+        "slug": "features",
+        "nav": "features",
+        "title": "Features",
+        "blurb": "Everything the tracker does, one area at a time: daily logging, the "
+                 "flare model, interventions, the clinical record and the clinician portal.",
+    },
 ]
 
 # Links to documents we haven't published yet resolve to GitHub instead of 404.
