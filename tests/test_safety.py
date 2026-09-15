@@ -292,3 +292,41 @@ class TestBackupAPIInSingleUserMode:
         monkeypatch.setitem(app_module.app.config, "PROPAGATE_EXCEPTIONS", False)
         resp = single_user.open(url, method=method, headers={"Authorization": f"Bearer {SECRET}"})
         assert resp.status_code != 401
+
+
+class TestLoginRedirect:
+    """After login, ?next= may only lead to a page on this site. Anything else
+    would let a crafted link send someone to a lookalike page straight after a
+    real login."""
+
+    @pytest.fixture
+    def log_in_with_next(self, app_client):
+        import bcrypt
+        import db
+        db.create_user("patient", "Test Patient",
+                       bcrypt.hashpw(b"correct horse", bcrypt.gensalt(4)).decode())
+
+        def post(next_value):
+            resp = app_client.post("/login", query_string={"next": next_value},
+                                   data={"username": "patient", "password": "correct horse"})
+            assert resp.status_code == 302
+            return resp.headers["Location"]
+        return post
+
+    @pytest.mark.parametrize("target", ["/daily", "/search?q=rash&page=2"])
+    def test_follows_a_page_on_this_site(self, log_in_with_next, target):
+        assert log_in_with_next(target) == target
+
+    @pytest.mark.parametrize("target", [
+        "https://evil.example/login",
+        "http:evil.example",
+        "//evil.example",
+        "/\\evil.example",
+        "\\\\evil.example",
+        "/\t/evil.example",
+        "/\n/evil.example",
+        "javascript:alert(1)",
+        "",
+    ])
+    def test_ignores_anything_else(self, log_in_with_next, target):
+        assert log_in_with_next(target) == "/"

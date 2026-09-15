@@ -10,7 +10,30 @@ from flask_login import login_user, logout_user, login_required, current_user
 import db
 from pathlib import Path
 
+from urllib.parse import urlsplit
+
 from appcore import CONFIG, User, app, csrf
+
+
+def _safe_next(target):
+    """The ?next= page to return to after login, or None if it isn't a page on
+    this site.
+
+    Following any URL at all would let a crafted link send someone to a
+    lookalike page straight after a real login. So only a plain path is
+    allowed: not an absolute URL ("https://evil.example"), not a
+    scheme-relative one ("//evil.example"), no backslash ("/\\evil.example",
+    which browsers read as "//"), and no control characters (browsers drop
+    tabs and newlines, which can turn "/\t/evil.example" into "//evil.example").
+    """
+    if not target or not target.startswith("/") or target.startswith("//"):
+        return None
+    if "\\" in target or any(ord(c) < 32 or ord(c) == 127 for c in target):
+        return None
+    parts = urlsplit(target)
+    if parts.scheme or parts.netloc:
+        return None
+    return target
 
 
 @app.route('/favicon/<path:filename>')
@@ -35,8 +58,7 @@ def login():
             user = User(user_dict)
             remember = bool(request.form.get("remember"))
             login_user(user, remember=remember)
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for("index"))
+            return redirect(_safe_next(request.args.get('next')) or url_for("index"))
         error = "Invalid username or password."
     return render_template("login.html", error=error)
 
